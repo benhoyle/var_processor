@@ -45,9 +45,8 @@ class VPU:
             input_data: 1D numpy array of length self.size.
 
         Returns:
-            residual: input minus the reconstructed input (1D array).
-            r: scalar feature detection output.
-
+            residual: input minus the reconstructed input (1D array)
+            r: scalar feature detection output
         """
         # Update covariance matrix
         self.update_cov(input_data)
@@ -57,6 +56,7 @@ class VPU:
         ev = self.pi.eigenvector
         # Project
         r = project(input_data, ev)
+        r = self.process_r(r)
         # Reconstruct
         input_hat = reconstruct(ev, r)
         # Determine output
@@ -84,3 +84,15 @@ class VPU:
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
+
+
+class VPUNonLin(VPU):
+    """VPU with non-linear clamping."""
+
+    def process_r(self, r):
+        """Perform post-processing on scalar r.
+
+        Args:
+            r: scalar.
+        """
+        return np.where(r > np.random.rand(), 1, 0)
