@@ -37,22 +37,22 @@ def test_buffer():
     """Test the buffer object and methods."""
     b = Buffer(2, 2, 2)
     a = np.arange(0, 4).reshape(2, 2)
-    b.add(a)
+    b.feedforward(a)
     assert np.array_equal(b.latest, a)
-    b.add(a)
+    b.feedforward(a)
     assert np.array_equal(b.latest, a)
-    assert b.flag is True
-    b.add(a)
+    b.feedforward(a)
     assert np.array_equal(b.latest, a)
-    assert b.flag is False
-    average = b.average
+    average = b.ff_output
     # Average will equal a
-    assert np.array_equal(average, a)
-    fb_theta = (a*2 - 1)
-    b.feedback(fb_theta)
-    assert np.array_equal(b.feedback_theta, fb_theta)
-    output = b.output
-    assert np.array_equal(output, np.clip(a - (a*2 - 1), 0, 1))
+    assert average.shape == a.shape
+    assert average.max() <= 1
+    assert average.min() >= 0
+    b.feedback(a)
+    fb_output = b.fb_output
+    assert fb_output.shape == a.shape
+    assert fb_output.max() <= 1
+    assert fb_output.min() >= 0
 
 
 def test_time_series():
