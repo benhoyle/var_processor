@@ -68,7 +68,7 @@ class Buffer:
         """Provide feedback / reconstruction output."""
         average = process_array(self.backward_array)
         # Subtract input - this is just the latest frame
-        difference = average - self.latest  # This is float64
+        difference = self.latest - average # This is float64
         # Clip to 0 to 1
         clipped = np.clip(difference, 0, 1)
         # Convert to 8-bit integer

@@ -53,7 +53,9 @@ class TimeSeries:
         for b_ff, b_fb in zip(self.time_series[:-1], self.time_series[1:]):
             feedback = b_fb.fb_output
             # Get feedforward and feedback for buffer
-            feedforward, _ = b_ff.iterate(feedforward, feedback)
+            feedforward, feedback = b_ff.iterate(feedforward, feedback)
+        # Then feedforward to last buffer
+        self.time_series[-1].iterate(feedforward, feedback)
         return None
 
     @property
@@ -78,3 +80,13 @@ class TimeSeries:
             "FB", np.array_repr(self.fb_output), "---",
             "Latest", np.array_repr(self.latest), "---"]
         return "\n\n".join(string_list)
+
+    def reconstruct(self, time_periods):
+        """Reconstruct an input.
+
+        Arg:
+            time_periods - integer indicating no. of outputs to sum
+        """
+        buffer_sum = np.asarray(
+            [self.fb_output for i in range(0, time_periods)])
+        return buffer_sum
