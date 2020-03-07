@@ -4,52 +4,77 @@ import numpy as np
 from src.var_processor.time_buffer import Buffer
 
 
+def check_size(self, frame):
+    """Check size of input matches array shape."""
+    return frame.shape == self.forward_array.shape[0:2]
+
+
+def add_to_array(array, frame):
+    """Add a frame to a rolling array."""
+    array = np.roll(array, -1, axis=2)
+    # Add frame to end of buffer
+    array[..., -1] = frame
+    return array
+
+
+def process_array(array):
+    """Process an array."""
+    # Start with just averaging - could be convolution
+    return np.mean(array, axis=2)
+
+
 class TimeSeries:
     """Generate a cascade of time buffers."""
 
-    def __init__(self, rows, cols, length):
+    def __init__(self, rows, cols, length, stages):
         """Initialise list for buffer series.
 
         Args:
             rows - integer indicating input array (frame) height in rows.
             cols - integer indicating input array (frame) width in cols.
             length - integer indicating number of time steps to buffer.
+            stages - integer indicating the number of buffer stages.
         """
         self.time_series = list()
         self.shape = (rows, cols, length)
-        self.time_series.append(Buffer(*self.shape))
-        # Initialise input iteration count
-        self.count = 0
+        # Generate series of buffers
+        self.time_series = [Buffer(*self.shape) for i in range(0, stages)]
         return None
 
     def add(self, frame):
         """Add frame for processing.
 
-        This runs for each time iteration. Individual buffers are updated
-        at a lower clock rate due to the flags.
+        This runs for each time iteration and passes information
+        between buffers.
         """
-        length = self.shape[2]
-        # Iterate through buffers in series
-        for i, buffer in enumerate(self.time_series):
-            if (self.count % length**i) == 0:
-                buffer.add(frame)
-                # Get feedback from next buffer if not last buffer
-                if i < (len(self.time_series)-1):
-                    # Add here that self.count % length**(i+1)?
-                    feedback_in = self.time_series[i+1].output
-                    buffer.feedback(feedback_in)
-                frame = buffer.output
-        # Increment count
-        self.count += 1
-        # If we need to add a new buffer
-        if self.count == length**len(self.time_series):
-            self.time_series.append(
-                Buffer(*self.shape)
-            )
-            # Reset count
-            self.count = 0
+        # Define variable to hold data passed forward
+        feedforward = frame
+        # Iterate through pairs of buffers in series
+        for b_ff, b_fb in zip(self.time_series[:-1], self.time_series[1:]):
+            feedback = b_fb.fb_output
+            # Get feedforward and feedback for buffer
+            feedforward, _ = b_ff.iterate(feedforward, feedback)
         return None
 
-    def output(self):
-        """Get data as numpy array."""
-        return np.asarray([buffer.output for buffer in self.time_series])
+    @property
+    def ff_output(self):
+        """Provide feedforward output of all arrays."""
+        return np.asarray([buffer.ff_output for buffer in self.time_series])
+
+    @property
+    def fb_output(self):
+        """Provide feedback / reconstruction output."""
+        return np.asarray([buffer.fb_output for buffer in self.time_series])
+
+    @property
+    def latest(self):
+        """Get last entry of each buffer as array."""
+        return np.asarray([buffer.latest for buffer in self.time_series])
+
+    def __repr__(self):
+        """Output a string representation."""
+        string_list = [
+            "FF", np.array_repr(self.ff_output), "---",
+            "FB", np.array_repr(self.fb_output), "---",
+            "Latest", np.array_repr(self.latest), "---"]
+        return "\n\n".join(string_list)

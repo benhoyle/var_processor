@@ -5,7 +5,7 @@ Run: pytest --cov=src
 import numpy as np
 from src.var_processor.pb_threshold import get_rand_ints, pb_threshold
 from src.var_processor.time_buffer import Buffer
-from src.var_processor.time_series import TimeSeries
+from src.var_processor.time_series import TimeSeries, process_array
 
 
 def test_get_rand_ints():
@@ -55,14 +55,20 @@ def test_buffer():
     assert fb_output.min() >= 0
 
 
-def test_time_series():
-    """Test time series object."""
-    ts = TimeSeries(2, 2, 2)
-    a = np.ones(shape=(2, 2))
-    assert len(ts.time_series) == 1
-    ts.add(a)
-    ts.add(a)
-    ts.add(a)
-    assert len(ts.time_series) == 2
-    out = ts.output()
-    assert out.shape[2] == 2
+def test_timeseries():
+    """Test the time series object."""
+    ts = TimeSeries(4, 3, 6, 8)
+    # Check everything is initialised to 0
+    assert np.array_equal(ts.ff_output, np.zeros((8, 4, 3)))
+    assert np.array_equal(ts.fb_output, np.zeros((8, 4, 3)))
+    assert np.array_equal(ts.latest, np.zeros((8, 4, 3)))
+    a = np.random.randint(255, size=(4, 3), dtype=np.uint8)
+    pb_a = pb_threshold(a)
+    ts.add(pb_a)
+
+
+def test_processarray():
+    """Test process array function."""
+    a = np.arange(0, 4, dtype=np.uint8)
+    b = a.reshape(1, 1, -1)
+    assert process_array(b) == 1.5
