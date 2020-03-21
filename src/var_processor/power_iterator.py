@@ -12,7 +12,7 @@ class PowerIterator:
         Args:
             length: integer setting the 1D size of the eigenvector.
         """
-        # Initialise eigenvector as random vector
+        # Initialise eigenvector as random vector - NOTE 8 BIT
         self.ev = np.random.randint(255, size=(length, 1))
         # Scale to have unit length (convert to integer values?)
         self.ev = self.ev / np.linalg.norm(self.ev)
@@ -24,10 +24,13 @@ class PowerIterator:
         # If a covariance is passed use to update
         if cov is not None:
             self.load_covariance(cov)
-        # Times covariance by working eigenvector
-        self.ev = np.matmul(np.power(self.cov, power), self.ev)
-        # Scale to have unit length (convert to integer values?)
-        self.ev = self.ev / np.linalg.norm(self.ev)
+        # Check cov is not all zero - if all 0 you get nan
+        if self.cov.any():
+            # Times covariance by working eigenvector
+            self.ev = np.matmul(np.power(self.cov, power), self.ev)
+            # Scale to have unit length (convert to integer values?)
+            self.ev = self.ev / np.linalg.norm(self.ev)
+        return self.ev
 
     @property
     def eigenvector(self):

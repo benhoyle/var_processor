@@ -37,4 +37,9 @@ class CovarianceUnit:
     @property
     def covariance(self):
         """Compute covariance when requested."""
-        return self.square_sum / self.count
+        # Only return is count is 1 or more
+        if self.count:
+            cov = self.square_sum / self.count
+        else:
+            cov = self.square_sum
+        return cov
