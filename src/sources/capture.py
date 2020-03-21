@@ -84,6 +84,13 @@ class VideoSource(SensorSource):
             grabbed = self.grabbed
         return grabbed, frame
 
+    def stop(self):
+        """Stop daemon."""
+        # Run parent stop
+        super(VideoSource, self).stop()
+        # Release camera
+        self.cap.release()
+
     def __exit__(self, exec_type, exc_value, traceback):
         """Extra code to close camera."""
         self.cap.release()
