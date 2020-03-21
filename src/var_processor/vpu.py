@@ -47,6 +47,7 @@ class VPU:
         Returns:
             residual: input minus the reconstructed input (1D array)
             r: scalar feature detection output
+
         """
         # Update covariance matrix
         self.update_cov(input_data)
@@ -96,3 +97,36 @@ class VPUNonLin(VPU):
             r: scalar.
         """
         return np.where(r > np.random.rand(), 1, 0)
+
+
+class BufferVPU(VPU):
+    """VPU with time buffering."""
+
+    def __init__(self, size, time_len):
+        """Initialise object.
+
+        Arg:
+            size - size of input data as 1D array.
+            time_line - number of time samples to buffer.
+        """
+        self.time_len = time_len
+        # Add buffer for input
+        self.buffer = np.zeros(shape=(size, time_len))
+        # Set up VPU with input as flattened buffer
+        super(BufferVPU, self).__init__(size*time_len)
+
+    def iterate(self, input_data):
+        """Same interfaces as parent.
+
+        input_data is of length size.
+        """
+        # Add input to buffer
+        self.buffer = np.roll(self.buffer, -1, axis=1)
+        # Add frame to end of buffer
+        self.buffer[..., -1] = input_data.flatten()
+        # Flatten buffer and provide as input to parent method
+        return super(BufferVPU, self).iterate(self.buffer.reshape(-1, 1))
+
+    def reset(self):
+        """Reset and clear."""
+        self.__init__(self.size, self.time_len)

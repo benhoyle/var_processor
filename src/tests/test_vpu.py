@@ -4,7 +4,9 @@ Run: pytest --cov=src --cov-report term-missing
 import numpy as np
 from src.var_processor.covariance import CovarianceUnit
 from src.var_processor.power_iterator import PowerIterator
-from src.var_processor.vpu import VPU, project, reconstruct, VPUNonLin
+from src.var_processor.vpu import (
+    VPU, project, reconstruct, VPUNonLin, BufferVPU
+)
 from src.var_processor.time_stage import TimeStage
 
 
@@ -96,6 +98,24 @@ def test_vpu_nonlin():
     old_cov = vpu.cu.covariance
     assert old_cov.any()
     assert cause == 0 or cause == 1
+    vpu.reset()
+    new_cov = vpu.cu.covariance
+    assert not np.array_equal(old_cov, new_cov)
+
+
+def test_buffer_vpu():
+    """Test the BufferVPU."""
+    # Intialise VPU
+    vpu = BufferVPU(2, 4)
+    assert vpu.buffer.shape == (2, 4)
+    assert vpu.cu.covariance.shape == (8, 8)
+    assert vpu.pi.ev.shape == (8, 1)
+    # Test Iteration
+    for _ in range(0, 100):
+        data_in = np.random.randint(2, size=(2, 1))
+        cause, residual = vpu.iterate(data_in)
+    old_cov = vpu.cu.covariance
+    assert old_cov.any()
     vpu.reset()
     new_cov = vpu.cu.covariance
     assert not np.array_equal(old_cov, new_cov)
