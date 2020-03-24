@@ -134,13 +134,6 @@ class PBTSensor(Sensor):
 
     def get_frame(self):
         """Get a 1D frame of data from the sensor."""
-        # If the sensor is not started, start
-        if not self.source.started:
-            self.start()
-        # Get frame and flatten to 1D array
-        _, initial_frame = self.source.read()
-        flattened = initial_frame.reshape(-1, 1)
-        thresholded = pb_threshold(flattened)
-        # Resize to nearest power of vec_len
-        output = resize(flattened, self.power_len)
-        return output
+        output = super(PBTSensor, self).get_frame()
+        thresholded = pb_threshold(output.astype(np.uint8))
+        return thresholded
