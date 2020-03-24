@@ -1,13 +1,17 @@
 """Visualiser for a Sensor."""
 
-import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
 class SensorVisualizer:
-    """Object to visualise Sensor."""
+    """Object to visualise Sensor.
+
+    We can likely make this simpler and more efficient once we
+    get it working.
+
+    """
 
     def __init__(self, sensor):
         """Initialise.
@@ -16,79 +20,95 @@ class SensorVisualizer:
             sensor - Sensor object.
         """
         self.sensor = sensor
-        # Get array size
-        size = VPU.size
-        # Initialise subplots with 3 figs
-        self.figure, self.axes = plt.subplots(1, 4)
+        # Start sensor if not started
+        if not self.sensor.source.started:
+            self.sensor.start()
+        # Get number of stages
+        num_stages = self.sensor.num_stages
+        # Initialise subplots for stages plus top level signal
+        self.figure, self.axes = plt.subplots(num_stages+1, 2)
         # Initialising animation
         self.animation = FuncAnimation(
             self.figure, self.update, save_count=200)
-        # Initialise arrays - need shape (size,)
-        self.input_array = self.residual_array = np.zeros(shape=(size, ))
-        # Initialise Array Element (X) Axis
-        self.x_range = np.arange(0, size)
-        self.binary_range = np.arange(0, 1)
-        # Configuring subplots
-        self.input_plot = self.axes[0].bar(
-            self.x_range, self.input_array, color='y')
-        self.axes[0].set_xlabel("Array Element")
-        self.axes[0].set_title("Input Data")
-        self.residual_plot = self.axes[1].bar(
-            self.x_range, self.residual_array, color='r')
-        self.axes[1].set_xlabel("Array Element")
-        self.axes[1].set_title("Residual Data")
-        # 3rd Plot shows R scalar output
-        self.r_plot = self.axes[2].bar(
-            self.binary_range, self.binary_range, color='k')
-        self.axes[2].set_title("R")
-        # Third subplot for the eigenvector
-        self.ev_plot = self.axes[3].bar(
-            self.x_range, self.input_array, color='b')
-        self.axes[3].set_xlabel("Array Element")
-        self.axes[3].set_title("Eigenvector")
-        self.size = size
-        for ax in self.axes:
+        # Set up x ranges for each bar plot
+        # Initialise raw data x range
+        self.x_d_range = None
+        # Initialise causes and residuals lengths for x axis
+        self.x_c_ranges = list()
+        self.x_r_ranges = list()
+        # Set up containers for bar plots
+        self.data_bar = None
+        self.cause_bars = list()
+        self.residual_bars = list()
+        # Set Titles
+        self.axes[0][0].set_title("Signal & Causes")
+        self.axes[0][1].set_title("Residuals")
+        # Setup variable to store bar plots
+        # Clear ticks
+        for ax in self.axes.ravel():
             ax.xaxis.set_major_locator(plt.NullLocator())
             # ax.yaxis.set_major_locator(plt.NullLocator())
         plt.subplots_adjust(wspace=0.5)
 
-        # Bed in VPU
-        for i in range(0, 100):
-            input_data = next(self.input_gen)
-            self.VPU.update_cov(input_data)
-
     def update(self, frame):
         """Update the visualisations."""
-        # Get input data
-        # print("updating")
-        input_data = next(self.input_gen)
-        r, residual = self.VPU.iterate(input_data)
-        self.input_plot.remove()
-        self.input_plot = self.axes[0].bar(
-            self.x_range,
-            input_data.reshape(self.size,),
-            color='y')
-        self.residual_plot.remove()
-        self.residual_plot = self.axes[1].bar(
-            self.x_range,
-            residual.reshape(self.size,),
-            color='r')
-        self.r_plot.remove()
-        self.r_plot = self.axes[2].bar(
-            self.binary_range,
-            r.reshape(1,),
-            color='k'
+        # Iterate sensor
+        frame = self.sensor.iterate()
+        causes = self.sensor.get_causes()
+        residuals = self.sensor.get_residuals()
+
+        # For bar plots we need to iterate through previous plots
+        # and remove then replot
+
+        # Redraw sensor data if exists - else set x range
+        if self.data_bar:
+            self.data_bar.remove()
+        else:
+            self.x_d_range = np.linspace(0, frame.shape[0]-1, frame.shape[0])
+        self.data_bar = self.axes[0][0].bar(
+            self.x_d_range,
+            frame.ravel(),
+            color='r'
         )
-        self.ev_plot.remove()
-        self.ev_plot = self.axes[3].bar(
-            self.x_range,
-            self.VPU.pi.eigenvector.reshape(self.size,),
-            color='b'
-        )
-        time.sleep(0.25)
+
+        # Plot causes first  - iterate through axes[0, 1:]
+        for i, cause in enumerate(causes):
+            if i < len(self.cause_bars):
+                self.cause_bars[i].remove()
+            else:
+                self.x_c_ranges.append(
+                    np.linspace(0, cause.shape[0]-1, cause.shape[0])
+                )
+            bar_chart = self.axes[i+1][0].bar(
+                self.x_c_ranges[i],
+                cause.ravel(),
+                color='b'
+            )
+            if i < len(self.cause_bars):
+                self.cause_bars[i] = bar_chart
+            else:
+                self.cause_bars.append(bar_chart)
+        # Then plot residuals - iterate through axes[1, 1:]
+        for i, residual in enumerate(residuals):
+            if i < len(self.residual_bars):
+                self.residual_bars[i].remove()
+            else:
+                self.x_r_ranges.append(
+                    np.linspace(0, residual.shape[0]-1, residual.shape[0])
+                )
+            bar_chart = self.axes[i][1].bar(
+                self.x_r_ranges[i],
+                residual.ravel(),
+                color='g'
+            )
+            if i < len(self.residual_bars):
+                self.residual_bars[i] = bar_chart
+            else:
+                self.residual_bars.append(bar_chart)
+
+        # time.sleep(0.1)
         return self.figure
 
     def show(self):
         """Show the visualisations."""
         plt.show()
-

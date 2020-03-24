@@ -6,6 +6,8 @@ from src.sources.capture import (
     AudioSource
 )
 from src.var_processor.sensor import Sensor, resize
+from src.sources.fft import FFTSource
+from src.visualisers.sensor import SensorVisualizer
 
 
 def test_resize():
@@ -28,6 +30,25 @@ def test_sensor():
     assert data.shape[0] == 3**10
     # Test iterating
     sensor.iterate()
+    causes = sensor.get_causes()
+    residuals = sensor.get_residuals()
+    data_len = sensor.get_data_length()
+    assert data_len == sensor.power_len
+    c_lens, r_lens = sensor.get_lengths()
+    assert c_lens[0] == causes[0].shape[0]
+    assert r_lens[0] == residuals[0].shape[0]
     sensor.stop()
-    sdata = sensor.get_frame()
+    _ = sensor.get_frame()
     sensor.stop()
+
+
+def test_sensor_vis():
+    """Test sensor visualisation."""
+    audio = FFTSource()
+    sensor = Sensor(audio, 4, 4)
+    sensor.source.stop()
+    sen_vis = SensorVisualizer(sensor)
+    sen_vis.update(None)
+    sen_vis.show()
+    sensor.source.stop()
+
