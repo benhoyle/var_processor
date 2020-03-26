@@ -26,6 +26,24 @@ def reconstruct(ev, r):
     return r*ev
 
 
+def combine(r_forward, r_backward):
+    """Combine two estimates of r.
+
+    We might later want to weight the estimates.
+
+    Args:
+        r_forward: scalar forward estimate of r.
+        r_backward: feedback estimate of r.
+
+    Returns:
+        r_combined: a single estimate from the two.
+
+    """
+    # Start with simple average
+    r_combined = (r_forward + r_backward) / 2
+    return r_combined
+
+
 class VPU:
     """Variance processing unit."""
 
@@ -39,14 +57,15 @@ class VPU:
         self.pi = PowerIterator(size)
         self.size = size
 
-    def iterate(self, input_data):
+    def iterate(self, input_data, r_backward=None):
         """Iterate through one discrete timestep.
 
         Args:
             input_data: 1D numpy array of length self.size.
+            r_backward: scalar value indicating a prediction of r.
 
         Returns:
-            residual: input minus the reconstructed input (1D array)
+            input_hat: 1D array containing the predicted input
             r: scalar feature detection output
 
         """
@@ -57,14 +76,15 @@ class VPU:
         self.pi.iterate(cov=cov)
         ev = self.pi.eigenvector
         # Project
-        r = project(input_data, ev)
-        r = self.process_r(r)
+        r_forward = project(input_data, ev)
+        # Add for backward compatibility
+        if not r_backward:
+            r_backward = r_forward
+        # Combine forward & back estimates
+        r_combined = combine(r_forward, r_backward)
         # Reconstruct
-        input_hat = reconstruct(ev, r)
-        # Determine output
-        residual = input_data - input_hat
-        residual = self.process_residual(residual)
-        return r, residual
+        input_hat = reconstruct(ev, r_combined)
+        return r_combined, input_hat
 
     def update_cov(self, input_data):
         """Update the covariance matrix.
@@ -76,44 +96,19 @@ class VPU:
         """
         self.cu.update(input_data)
 
-    def process_r(self, r):
-        """Perform post-processing on scalar r.
-
-        Args:
-            r: scalar.
-        """
-        return r
-
-    def process_residual(self, residual):
-        """Perform post-processing on residual array.
-
-        Args:
-            residual: numpy array.
-        """
-        return residual
-
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
 
 
-class VPUNonLin(VPU):
-    """VPU with non-linear clamping."""
-
-    def process_r(self, r):
-        """Perform post-processing on scalar r.
-
-        Args:
-            r: scalar.
-        """
-        return non_linearity(r)
-
-
 class BufferVPU(VPU):
     """VPU with time buffering."""
 
-    def __init__(self, size, time_len):
+    def __init__(self, size, time_len=1):
         """Initialise object.
+
+        We might want to later have different time_lens for forward
+        and backward buffering.
 
         Arg:
             size - size of input data as 1D array.
@@ -121,22 +116,61 @@ class BufferVPU(VPU):
         """
         self.time_len = time_len
         # Add buffer for input
-        self.buffer = np.zeros(shape=(size, time_len))
+        self.forward_buffer = np.zeros(shape=(size, time_len))
+        self.backward_buffer = np.zeros(shape=(1, time_len))
         # Set up VPU with input as flattened buffer
         super(BufferVPU, self).__init__(size*time_len)
 
-    def iterate(self, input_data):
-        """Same interfaces as parent.
+    def iterate(self, input_data, r_backward=0):
+        """Iterate - same interfaces as parent.
 
         input_data is of length size.
         """
         # Add input to buffer
-        self.buffer = np.roll(self.buffer, -1, axis=1)
+        self.forward_buffer = np.roll(
+            self.forward_buffer, -1, axis=1
+        )
         # Add frame to end of buffer
-        self.buffer[..., -1] = input_data.flatten()
+        self.forward_buffer[..., -1] = input_data.flatten()
+        # Add r_backward to rear buffer
+        self.backward_buffer = np.roll(
+            self.backward_buffer, -1, axis=1
+        )
+        # Add new r_backward to back buffer
+        self.backward_buffer[..., -1] = r_backward
+        # Compute average r backward from buffer
+        average_r_back = np.mean(self.backward_buffer, axis=1)
         # Flatten buffer and provide as input to parent method
-        return super(BufferVPU, self).iterate(self.buffer.reshape(-1, 1))
+        r, input_hat = super(BufferVPU, self).iterate(
+            self.forward_buffer.reshape(-1, 1),
+            average_r_back
+        )
+        # "Unbuffer" input_hat by averaging in time
+        unbuffered = np.mean(
+            input_hat.reshape(-1, self.time_len),
+            axis=1
+        )
+        return r, unbuffered
 
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size, self.time_len)
+
+
+class VPUNonLin(BufferVPU):
+    """VPU with non-linearity on outputs."""
+
+    def iterate(self, input_data, r_backward=None):
+        """Iterate - same interfaces as parent.
+
+        input_data is of length size.
+        """
+        r, input_hat = super(VPUNonLin, self).iterate(
+            input_data,
+            r_backward
+        )
+        # Apply non-linearity to output r
+        r_non_lin = non_linearity(r)
+        # Apply non-lienarity to output input prediction
+        input_hat_non_lin = non_linearity(input_hat)
+        return r_non_lin, input_hat_non_lin

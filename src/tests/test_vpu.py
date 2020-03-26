@@ -107,7 +107,7 @@ def test_buffer_vpu():
     """Test the BufferVPU."""
     # Intialise VPU
     vpu = BufferVPU(2, 4)
-    assert vpu.buffer.shape == (2, 4)
+    assert vpu.forward_buffer.shape == (2, 4)
     assert vpu.cu.covariance.shape == (8, 8)
     assert vpu.pi.ev.shape == (8, 1)
     # Test Iteration
