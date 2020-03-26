@@ -3,7 +3,6 @@
 import math
 import numpy as np
 from src.var_processor.time_stage import TimeStage
-from src.var_processor.pb_threshold import pb_threshold, non_linearity
 
 
 def resize(array, elem_num):
@@ -93,10 +92,15 @@ class Sensor:
     def iterate(self):
         """High level processing loop."""
         frame = self.get_frame()
-        input_data = frame
-        for stage in self.stages:
-            stage.forward(input_data)
-            input_data = stage.get_causes()
+        # Set feedforward as input data
+        feedforward = frame
+        # Iterate through pairs of timestages in series
+        for ts_ff, ts_fb in zip(self.stages[:-1], self.stages[1:]):
+            feedback = ts_fb.get_pred_inputs()
+            # Get feedforward and feedback for buffer
+            feedforward, feedback = ts_ff.iterate(feedforward, feedback)
+        # Then feedforward to last stage with no feedback (for now)
+        self.stages[-1].iterate(feedforward, None)
         return frame
 
     def get_causes(self):
@@ -105,19 +109,19 @@ class Sensor:
             stage.get_causes() for stage in self.stages
         ]
 
-    def get_residuals(self):
-        """Return residuals as a list of arrays."""
+    def get_pred_inputs(self):
+        """Return predicted inputs as a list of arrays."""
         return [
-            stage.get_residuals() for stage in self.stages
+            stage.get_pred_inputs() for stage in self.stages
         ]
 
     def get_lengths(self):
-        """Return the vector lengths of the causes and residuals."""
+        """Return the vector lengths of the causes and predicted inputs."""
         causes = self.get_causes()
-        residuals = self.get_residuals()
+        pred_inputs = self.get_pred_inputs()
         cause_lengths = [cause.shape[0] for cause in causes]
-        res_lengths = [res.shape[0] for res in residuals]
-        return cause_lengths, res_lengths
+        pred_lengths = [pred.shape[0] for pred in pred_inputs]
+        return cause_lengths, pred_lengths
 
     def get_data_length(self):
         """Return vector length of initial data."""
@@ -127,32 +131,3 @@ class Sensor:
         """Steop sensor thread."""
         if self.source.started:
             self.source.stop()
-
-
-class PBTSensor(Sensor):
-    """A sensor that implements probabilistic binary thresholding."""
-
-    def get_frame(self):
-        """Get a 1D frame of data from the sensor."""
-        output = super(PBTSensor, self).get_frame()
-        thresholded = pb_threshold(output.astype(np.uint8))
-        return thresholded
-
-
-class NonLinearSensor(PBTSensor):
-    """A sensor that applies a non-linearity to the causes and
-    residuals."""
-
-    def get_causes(self):
-        """Return causes as a list of arrays."""
-        return [
-            non_linearity(stage.get_causes())
-            for stage in self.stages
-        ]
-
-    def get_residuals(self):
-        """Return residuals as a list of arrays."""
-        return [
-            non_linearity(stage.get_residuals())
-            for stage in self.stages
-        ]

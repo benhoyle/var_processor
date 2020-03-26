@@ -77,11 +77,14 @@ class VPU:
         ev = self.pi.eigenvector
         # Project
         r_forward = project(input_data, ev)
-        # Add for backward compatibility
-        if not r_backward:
-            r_backward = r_forward
-        # Combine forward & back estimates
-        r_combined = combine(r_forward, r_backward)
+        # Set the combined r based on whether there is feedback
+        if r_backward is not None:
+            r_combined = combine(r_forward, r_backward)
+        else:
+            # If no feedback just return forward r
+            r_combined = r_forward
+        # We might need to do something similar for dreaming
+        # I.e. feedforward = None and feedback = not None
         # Reconstruct
         input_hat = reconstruct(ev, r_combined)
         return r_combined, input_hat
@@ -121,7 +124,7 @@ class BufferVPU(VPU):
         # Set up VPU with input as flattened buffer
         super(BufferVPU, self).__init__(size*time_len)
 
-    def iterate(self, input_data, r_backward=0):
+    def iterate(self, input_data, r_backward=None):
         """Iterate - same interfaces as parent.
 
         input_data is of length size.
@@ -132,14 +135,19 @@ class BufferVPU(VPU):
         )
         # Add frame to end of buffer
         self.forward_buffer[..., -1] = input_data.flatten()
-        # Add r_backward to rear buffer
-        self.backward_buffer = np.roll(
-            self.backward_buffer, -1, axis=1
-        )
-        # Add new r_backward to back buffer
-        self.backward_buffer[..., -1] = r_backward
-        # Compute average r backward from buffer
-        average_r_back = np.mean(self.backward_buffer, axis=1)
+        # If feedback is activated
+        if r_backward:
+            # Add r_backward to rear buffer
+            self.backward_buffer = np.roll(
+                self.backward_buffer, -1, axis=1
+            )
+            # Add new r_backward to back buffer
+            self.backward_buffer[..., -1] = r_backward
+            # Compute average r backward from buffer
+            average_r_back = np.mean(self.backward_buffer, axis=1)
+        else:
+            # Feeding None turns off feedback
+            average_r_back = None
         # Flatten buffer and provide as input to parent method
         r, input_hat = super(BufferVPU, self).iterate(
             self.forward_buffer.reshape(-1, 1),

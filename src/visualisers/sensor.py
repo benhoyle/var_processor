@@ -55,7 +55,7 @@ class SensorVisualizer:
         # Iterate sensor
         frame = self.sensor.iterate()
         causes = self.sensor.get_causes()
-        residuals = self.sensor.get_residuals()
+        residuals = self.sensor.get_pred_inputs()
 
         # For bar plots we need to iterate through previous plots
         # and remove then replot

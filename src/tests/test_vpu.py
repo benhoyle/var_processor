@@ -79,7 +79,7 @@ def test_vpu():
     # Test Iteration
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(2, 1))
-        cause, residual = vpu.iterate(data_in)
+        _ = vpu.iterate(data_in)
     old_cov = vpu.cu.covariance
     assert old_cov.any()
     vpu.reset()
@@ -99,7 +99,7 @@ def test_buffer_vpu():
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(2, 1))
         r_backward = np.random.randint(2, size=(1, 1))
-        cause, residual = vpu.iterate(data_in, r_backward)
+        _ = vpu.iterate(data_in, r_backward)
     old_cov = vpu.cu.covariance
     assert old_cov.any()
     vpu.reset()
@@ -131,25 +131,23 @@ def test_time_stage():
     stages = TimeStage(3, 10)
     assert len(stages.vpus) == 10
     assert not stages.causes.any()
-    assert not stages.residuals.any()
+    assert not stages.pred_inputs.any()
     assert "10" in stages.__repr__()
     # Check data in
     for _ in range(0, 10):
         data_in = np.random.randint(2, size=(stages.size, 1))
-        stages.forward(data_in)
+        r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
+        causes1, pred_inputs1 = stages.iterate(data_in, r_backwards)
     assert stages.causes.any()
-    assert stages.residuals.any()
-    causes1 = stages.get_causes()
-    residuals1 = stages.get_residuals()
+    assert stages.pred_inputs.any()
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(stages.size, 1))
-        stages.forward(data_in)
-    causes2 = stages.get_causes()
-    residuals2 = stages.get_residuals()
+        r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
+        causes2, pred_inputs2 = stages.iterate(data_in, r_backwards)
     assert not np.array_equal(causes1, causes2)
-    assert not np.array_equal(residuals1, residuals2)
+    assert not np.array_equal(pred_inputs1, pred_inputs2)
     # Check different sizes
     data_in = np.random.randint(2, size=(stages.size+10, 1))
-    stages.forward(data_in)
+    _ = stages.iterate(data_in, r_backwards)
     data_in = np.random.randint(2, size=(stages.size-10, 1))
-    stages.forward(data_in)
+    _ = stages.iterate(data_in, r_backwards)

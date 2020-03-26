@@ -5,7 +5,7 @@ import numpy as np
 from src.sources.capture import (
     AudioSource
 )
-from src.var_processor.sensor import Sensor, resize, PBTSensor
+from src.var_processor.sensor import Sensor, resize
 from src.sources.fft import FFTSource
 from src.visualisers.sensor import SensorVisualizer
 
@@ -31,34 +31,12 @@ def test_sensor():
     # Test iterating
     sensor.iterate()
     causes = sensor.get_causes()
-    residuals = sensor.get_residuals()
+    pred_inputs = sensor.get_pred_inputs()
     data_len = sensor.get_data_length()
     assert data_len == sensor.power_len
-    c_lens, r_lens = sensor.get_lengths()
+    c_lens, p_lens = sensor.get_lengths()
     assert c_lens[0] == causes[0].shape[0]
-    assert r_lens[0] == residuals[0].shape[0]
-    sensor.stop()
-    _ = sensor.get_frame()
-    sensor.stop()
-
-
-def test_pbtsensor():
-    """Test binary thresholded sensor."""
-    # Test Initialise
-    sensor = PBTSensor(AudioSource(), 3, 3)
-    assert len(sensor.stages) == 10
-    # Test getting data
-    data = sensor.get_frame()
-    assert data.shape[0] == 3**10
-    # Test iterating
-    sensor.iterate()
-    causes = sensor.get_causes()
-    residuals = sensor.get_residuals()
-    data_len = sensor.get_data_length()
-    assert data_len == sensor.power_len
-    c_lens, r_lens = sensor.get_lengths()
-    assert c_lens[0] == causes[0].shape[0]
-    assert r_lens[0] == residuals[0].shape[0]
+    assert p_lens[0] == pred_inputs[0].shape[0]
     sensor.stop()
     _ = sensor.get_frame()
     sensor.stop()
@@ -73,6 +51,3 @@ def test_sensor_vis():
     sen_vis.update(None)
     sen_vis.show()
     sensor.source.stop()
-
-
-

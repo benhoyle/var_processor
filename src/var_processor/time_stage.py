@@ -1,7 +1,7 @@
 """Time Stage - a group of VPUs that represent data for a given time."""
 
 import numpy as np
-from src.var_processor.vpu import VPU
+from src.var_processor.vpu import VPUNonLin
 
 
 class TimeStage:
@@ -17,20 +17,28 @@ class TimeStage:
         self.vec_len = vec_len
         self.stage_len = stage_len
         self.size = self.vec_len*self.stage_len
-        self.vpus = [VPU(vec_len) for _ in range(0, stage_len)]
+        self.vpus = [VPUNonLin(vec_len) for _ in range(0, stage_len)]
         # Create a blank array for the causes
         self.causes = np.zeros(shape=(stage_len, 1))
-        # Create a blank array for the residuals
-        self.residuals = np.zeros(shape=(self.size, 1))
+        # Create a blank array for the predicted inputs
+        self.pred_inputs = np.zeros(shape=(self.size, 1))
 
-    def forward(self, stage_in):
+    def iterate(self, stage_in, stage_feedback=None):
         """Pass data to the stage for processing.
 
         Arg:
             stage_in - 1D numpy array with data to process.
+            stage_feedback - 1D numpy array with feedback data.
+
+            If stage_feedback is None there is no feedback, e.g.
+            for a last stage in a series.
+
+        Returns:
+            r_out - 1D numpy array of causes.
+            pred_input - 1D numpy array with predicted input.
+
         """
         # Create blank array to hold / pad data
-
         input_array = np.zeros(shape=(self.size, 1))
         # Check data is of right size
         if stage_in.shape[0] > self.size:
@@ -44,17 +52,26 @@ class TimeStage:
         for i, vpu in enumerate(self.vpus):
             start = i*self.vec_len
             end = (i+1)*self.vec_len
-            cause, residual = vpu.iterate(input_array[start:end])
+            input_segment = input_array[start:end]
+            if stage_feedback is not None:
+                feedback_segment = stage_feedback[i]
+            else:
+                feedback_segment = None
+            cause, pred_input = vpu.iterate(
+                input_segment,
+                feedback_segment
+            )
             self.causes[i] = cause
-            self.residuals[start:end] = residual
+            self.pred_inputs[start:end] = pred_input
+        return self.causes, self.pred_inputs
 
     def get_causes(self):
         """Return output of VPUs as array."""
         return self.causes.copy()
 
-    def get_residuals(self):
-        """Return residual output as array."""
-        return self.residuals.copy()
+    def get_pred_inputs(self):
+        """Return predicted inputs as array."""
+        return self.pred_inputs.copy()
 
     def __repr__(self):
         """Print layer information."""
