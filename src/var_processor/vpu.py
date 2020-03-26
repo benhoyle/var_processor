@@ -3,6 +3,7 @@
 import numpy as np
 from src.var_processor.covariance import CovarianceUnit
 from src.var_processor.power_iterator import PowerIterator
+from src.var_processor.pb_threshold import non_linearity
 
 
 def project(input_data, ev):
@@ -62,6 +63,7 @@ class VPU:
         input_hat = reconstruct(ev, r)
         # Determine output
         residual = input_data - input_hat
+        residual = self.process_residual(residual)
         return r, residual
 
     def update_cov(self, input_data):
@@ -82,6 +84,14 @@ class VPU:
         """
         return r
 
+    def process_residual(self, residual):
+        """Perform post-processing on residual array.
+
+        Args:
+            residual: numpy array.
+        """
+        return residual
+
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
@@ -96,7 +106,7 @@ class VPUNonLin(VPU):
         Args:
             r: scalar.
         """
-        return np.where(r > np.random.rand(), 1, 0)
+        return non_linearity(r)
 
 
 class BufferVPU(VPU):

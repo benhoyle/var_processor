@@ -29,3 +29,21 @@ def pb_threshold(input_values):
     rand_ints = get_rand_ints(bit_size, input_size)
     binary_values = np.where(input_values > rand_ints, 1, 0)
     return binary_values
+
+
+def non_linearity(input_values):
+    """Apply a non-linearity to the input.
+
+    Args:
+        input_values - numpy array.
+    Returns:
+        array of 8-bit binary values.
+    """
+    # Initially use tanh as per Rao paper - it's also faster than max/min norm
+    non_lin_output = np.tanh(input_values)
+    # Add bias here - moves -ve values into +ve space
+    biased = non_lin_output + 1
+    # Now we need to convert to int to threshold? Why don't we define a float thresholder
+    rand_ints = np.random.uniform(size=biased.shape)
+    binary_values = np.where(input_values > rand_ints, 1, 0)
+    return binary_values.astype(np.uint8)

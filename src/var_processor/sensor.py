@@ -3,7 +3,7 @@
 import math
 import numpy as np
 from src.var_processor.time_stage import TimeStage
-from src.var_processor.pb_threshold import pb_threshold
+from src.var_processor.pb_threshold import pb_threshold, non_linearity
 
 
 def resize(array, elem_num):
@@ -137,3 +137,22 @@ class PBTSensor(Sensor):
         output = super(PBTSensor, self).get_frame()
         thresholded = pb_threshold(output.astype(np.uint8))
         return thresholded
+
+
+class NonLinearSensor(PBTSensor):
+    """A sensor that applies a non-linearity to the causes and
+    residuals."""
+
+    def get_causes(self):
+        """Return causes as a list of arrays."""
+        return [
+            non_linearity(stage.get_causes())
+            for stage in self.stages
+        ]
+
+    def get_residuals(self):
+        """Return residuals as a list of arrays."""
+        return [
+            non_linearity(stage.get_residuals())
+            for stage in self.stages
+        ]
