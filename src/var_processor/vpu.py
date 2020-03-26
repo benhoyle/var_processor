@@ -150,7 +150,7 @@ class BufferVPU(VPU):
             input_hat.reshape(-1, self.time_len),
             axis=1
         )
-        return r, unbuffered
+        return r, unbuffered.reshape(-1, 1)
 
     def reset(self):
         """Reset and clear."""

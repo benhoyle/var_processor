@@ -87,35 +87,39 @@ def test_vpu():
     assert not np.array_equal(old_cov, new_cov)
 
 
-def test_vpu_nonlin():
-    """Test the VPU with non linearity."""
-    # Intialise VPU
-    vpu = VPUNonLin(2)
-    # Test Iteration
-    for _ in range(0, 100):
-        data_in = np.random.randint(2, size=(2, 1))
-        cause, residual = vpu.iterate(data_in)
-    old_cov = vpu.cu.covariance
-    assert old_cov.any()
-    assert cause == 0 or cause == 1
-    vpu.reset()
-    new_cov = vpu.cu.covariance
-    assert not np.array_equal(old_cov, new_cov)
-
-
 def test_buffer_vpu():
     """Test the BufferVPU."""
     # Intialise VPU
     vpu = BufferVPU(2, 4)
     assert vpu.forward_buffer.shape == (2, 4)
+    assert vpu.backward_buffer.shape == (1, 4)
     assert vpu.cu.covariance.shape == (8, 8)
     assert vpu.pi.ev.shape == (8, 1)
     # Test Iteration
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(2, 1))
-        cause, residual = vpu.iterate(data_in)
+        r_backward = np.random.randint(2, size=(1, 1))
+        cause, residual = vpu.iterate(data_in, r_backward)
     old_cov = vpu.cu.covariance
     assert old_cov.any()
+    vpu.reset()
+    new_cov = vpu.cu.covariance
+    assert not np.array_equal(old_cov, new_cov)
+
+
+def test_vpu_nonlin():
+    """Test the VPU with non linearity."""
+    # Intialise VPU
+    vpu = VPUNonLin(2, 4)
+    # Test Iteration
+    for _ in range(0, 100):
+        data_in = np.random.randint(2, size=(2, 1))
+        r_backward = np.random.randint(2, size=(1, 1))
+        cause, residual = vpu.iterate(data_in, r_backward)
+    old_cov = vpu.cu.covariance
+    assert old_cov.any()
+    assert cause == 0 or cause == 1
+    assert residual.shape == (2, 1)
     vpu.reset()
     new_cov = vpu.cu.covariance
     assert not np.array_equal(old_cov, new_cov)
