@@ -39,7 +39,7 @@ class SensorVisualizer:
         # Set up containers for bar plots
         self.data_bar = None
         self.cause_bars = list()
-        self.residual_bars = list()
+        self.pred_input_bars = list()
         # Set Titles
         self.axes[0][0].set_title("Signal & Causes")
         self.axes[0][1].set_title("Residuals")
@@ -55,7 +55,7 @@ class SensorVisualizer:
         # Iterate sensor
         frame = self.sensor.iterate()
         causes = self.sensor.get_causes()
-        residuals = self.sensor.get_pred_inputs()
+        pred_inputs = self.sensor.get_pred_inputs()
 
         # For bar plots we need to iterate through previous plots
         # and remove then replot
@@ -89,22 +89,22 @@ class SensorVisualizer:
             else:
                 self.cause_bars.append(bar_chart)
         # Then plot residuals - iterate through axes[1, 1:]
-        for i, residual in enumerate(residuals):
-            if i < len(self.residual_bars):
-                self.residual_bars[i].remove()
+        for i, pred_input in enumerate(pred_inputs):
+            if i < len(self.pred_input_bars):
+                self.pred_input_bars[i].remove()
             else:
                 self.x_r_ranges.append(
-                    np.linspace(0, residual.shape[0]-1, residual.shape[0])
+                    np.linspace(0, pred_input.shape[0]-1, pred_input.shape[0])
                 )
             bar_chart = self.axes[i][1].bar(
                 self.x_r_ranges[i],
-                residual.ravel(),
+                pred_input.ravel(),
                 color='g'
             )
-            if i < len(self.residual_bars):
-                self.residual_bars[i] = bar_chart
+            if i < len(self.pred_input_bars):
+                self.pred_input_bars[i] = bar_chart
             else:
-                self.residual_bars.append(bar_chart)
+                self.pred_input_bars.append(bar_chart)
 
         # time.sleep(0.1)
         return self.figure

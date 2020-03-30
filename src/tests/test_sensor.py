@@ -28,6 +28,7 @@ def test_sensor():
     # Test getting data
     data = sensor.get_frame()
     assert data.shape[0] == 3**10
+    assert data.max() <= 1
     # Test iterating
     sensor.iterate()
     causes = sensor.get_causes()

@@ -28,6 +28,8 @@ class CovarianceUnit:
         x_dash = self.x_sum - self.count*x
         scale_factor = self.count*(self.count+1)
         self.square_sum += (scale_factor**-1)*np.dot(x_dash, x_dash.T)
+        # If the count reaches a threshold, can we divide the sums
+        # by count and start from 1 again?
 
     @property
     def mean(self):
