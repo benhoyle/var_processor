@@ -40,10 +40,12 @@ def non_linearity(input_values):
         array of 8-bit binary values.
     """
     # Initially use tanh as per Rao paper - it's also faster than max/min norm
-    non_lin_output = np.tanh(input_values)
+    # non_lin_output = np.tanh(input_values)
+    # Or just clip at -1, 1? Do we need to do this at all?
+    non_lin_output = input_values
     # Add bias here - moves -ve values into +ve space
     biased = non_lin_output + 1
     # Now we need to convert to int to threshold? Why don't we define a float thresholder
-    rand_ints = np.random.uniform(size=biased.shape)
-    binary_values = np.where(input_values > rand_ints, 1, 0)
+    rand_vals = np.random.uniform(size=biased.shape)
+    binary_values = np.where(input_values > rand_vals, 1, 0)
     return binary_values.astype(np.uint8)

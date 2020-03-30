@@ -47,6 +47,7 @@ def test_power_computation():
     # Use numpy linear algebra to determine eigenvectors and values
     w, v = np.linalg.eig(cov)
     # Check eigenvectors are close (abs removes difference in sign)
-    assert np.allclose(abs(evec.T), abs(v[:, np.argmax(w)]), rtol=0.05)
+    assert np.allclose(
+        abs(evec.T), abs(v[:, np.argmax(w)]), rtol=0.05, atol=0.05)
     # Check eigenvalues are close
-    assert np.allclose(evalue, w[np.argmax(w)], rtol=0.05)
+    assert np.allclose(evalue, w[np.argmax(w)], rtol=0.05, atol=0.05)

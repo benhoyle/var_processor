@@ -43,5 +43,5 @@ def test_covariance_computation():
         sample = np.dot(L, np.random.randn(3, 1)) + mean
         cov_unit.update(sample)
     # Check within 10%
-    assert np.allclose(mean, cov_unit.mean, rtol=0.20)
-    assert np.allclose(cov, cov_unit.covariance, rtol=0.20)
+    assert np.allclose(mean, cov_unit.mean, rtol=0.10, atol=0.05)
+    assert np.allclose(cov, cov_unit.covariance, rtol=0.10, atol=0.05)

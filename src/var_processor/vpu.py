@@ -6,42 +6,14 @@ from src.var_processor.power_iterator import PowerIterator
 from src.var_processor.pb_threshold import non_linearity
 
 
-def project(input_data, ev):
+def project(vec_1, vec_2):
     """Project input using eigenvector.
 
     Args:
-        input_data: 1D numpy array of length 'size'.
-        ev: eigenvector - 1D numpy array of length 'size'.
+        vec1: 1D numpy array.
+        vec2: 1D numpy array.
     """
-    return np.dot(ev.T, input_data)
-
-
-def reconstruct(ev, r):
-    """Reconstruct a version of the input using projected input.
-
-    Args:
-        ev: eigenvector - 1D numpy array of length 'size'.
-        r: a scalar indicating a projection.
-    """
-    return r*ev
-
-
-def combine(r_forward, r_backward):
-    """Combine two estimates of r.
-
-    We might later want to weight the estimates.
-
-    Args:
-        r_forward: scalar forward estimate of r.
-        r_backward: feedback estimate of r.
-
-    Returns:
-        r_combined: a single estimate from the two.
-
-    """
-    # Start with simple average
-    r_combined = (r_forward + r_backward) / 2
-    return r_combined
+    return np.dot(vec_1, vec_2)
 
 
 class VPU:
@@ -57,7 +29,7 @@ class VPU:
         self.pi = PowerIterator(size)
         self.size = size
 
-    def iterate(self, input_data, r_backward=None):
+    def iterate(self, input_data, r_backward):
         """Iterate through one discrete timestep.
 
         Args:
@@ -65,50 +37,45 @@ class VPU:
             r_backward: scalar value indicating a prediction of r.
 
         Returns:
-            input_hat: 1D array containing the predicted input
+            pred_inputs: 1D array containing the predicted input
             r: scalar feature detection output
 
         """
-        # Update covariance matrix
-        self.update_cov(input_data)
-        cov = self.cu.covariance
-        # Power iterate
-        self.pi.iterate(cov=cov)
-        ev = self.pi.eigenvector
-        # Project
-        r_forward = project(input_data, ev)
-        # Set the combined r based on whether there is feedback
-        if r_backward is not None:
-            r_combined = combine(r_forward, r_backward)
-        else:
-            # If no feedback just return forward r
-            r_combined = r_forward
-        # We might need to do something similar for dreaming
-        # I.e. feedforward = None and feedback = not None
-        # Reconstruct
-        input_hat = reconstruct(ev, r_combined)
-        return r_combined, input_hat
+        r_forward = self.forward(input_data)
+        pred_inputs = self.backward(r_backward)
+        return r_forward, pred_inputs
 
     def forward(self, input_data):
-        """A forward pass to generate cause - r.
+        """Forward pass to generate cause - r.
 
         Args:
             input_data: 1D numpy array of length self.size.
+            This is the residual data rather than the original data.
         Returns:
-            r: scalar feature detection output
+            r_forward: scalar feature detection output
+
         """
-        # Update covariance matrix
-        self.update_cov(input_data)
         cov = self.cu.covariance
-        # Power iterate
+        # Power iterate - we could pass in here the input_data
         self.pi.iterate(cov=cov)
-        ev = self.pi.eigenvector
         # Project
-        r_forward = project(input_data, ev)
+        r_forward = project(self.pi.eigenvector.T, input_data)
         return r_forward
 
     def backward(self, r_backward):
-        pass
+        """Backward pass to generate predicted inputs.
+
+        The predicted inputs are the original not residual inputs.
+
+        Args:
+            r_backward: scalar cause feedback.
+        Returns:
+            pred_inputs: numpy array of predicted inputs of size - size.
+
+        """
+        # Use item to convert r to scalar
+        pred_inputs = project(r_backward.item(), self.pi.eigenvector)
+        return pred_inputs
 
     def update_cov(self, input_data):
         """Update the covariance matrix.
@@ -117,6 +84,7 @@ class VPU:
 
         Args:
             input_data: 1D numpy array of length self.size.
+            This is the original rather than residual data.
         """
         self.cu.update(input_data)
 
@@ -140,66 +108,84 @@ class BufferVPU(VPU):
         """
         self.time_len = time_len
         # Add buffer for input
+        self.cov_buffer = np.zeros(shape=(size, time_len))
         self.forward_buffer = np.zeros(shape=(size, time_len))
         self.backward_buffer = np.zeros(shape=(1, time_len))
         # Set up VPU with input as flattened buffer
         super(BufferVPU, self).__init__(size*time_len)
 
-    def iterate(self, input_data, r_backward=None):
-        """Iterate - same interfaces as parent.
+    def update_cov(self, input_data):
+        """Update the covariance matrix."""
+        # Add input to buffer
+        self.cov_buffer = np.roll(
+            self.cov_buffer, -1, axis=1
+        )
+        # Add frame to end of buffer
+        self.cov_buffer[..., -1] = input_data.flatten()
+        flat_time_data = self.cov_buffer.reshape(-1, 1)
+        super(BufferVPU, self).update_cov(flat_time_data)
 
-        input_data is of length size.
-        """
+    def forward(self, input_data):
+        """Forward pass - same interface as parent."""
         # Add input to buffer
         self.forward_buffer = np.roll(
             self.forward_buffer, -1, axis=1
         )
         # Add frame to end of buffer
         self.forward_buffer[..., -1] = input_data.flatten()
-        # If feedback is activated
-        if r_backward:
-            # Add r_backward to rear buffer
-            self.backward_buffer = np.roll(
-                self.backward_buffer, -1, axis=1
-            )
-            # Add new r_backward to back buffer
-            self.backward_buffer[..., -1] = r_backward
-            # Compute average r backward from buffer
-            average_r_back = np.mean(self.backward_buffer, axis=1)
-        else:
-            # Feeding None turns off feedback
-            average_r_back = None
-        # Flatten buffer and provide as input to parent method
-        r, input_hat = super(BufferVPU, self).iterate(
-            self.forward_buffer.reshape(-1, 1),
+        # Run original forward method
+        return super(BufferVPU, self).forward(
+            self.forward_buffer.reshape(-1, 1)
+        )
+
+    def backward(self, r_backward):
+        """Backward pass - same interface as parent."""
+        # Add r_backward to rear buffer
+        self.backward_buffer = np.roll(
+            self.backward_buffer, -1, axis=1
+        )
+        # Add new r_backward to back buffer
+        self.backward_buffer[..., -1] = r_backward
+        # Take r_backward as the average of the stored values
+        average_r_back = np.mean(self.backward_buffer, axis=1)
+        return super(BufferVPU, self).backward(
             average_r_back
         )
+
+    def iterate(self, input_data, r_backward):
+        """Iterate - same interfaces as parent.
+
+        input_data is of length size.
+        """
+        r_forward = self.forward(input_data)
+        pred_inputs = self.backward(r_backward)
         # "Unbuffer" input_hat by averaging in time
+        # This isn't right and skews our function
         unbuffered = np.mean(
-            input_hat.reshape(-1, self.time_len),
+            pred_inputs.reshape(-1, self.time_len),
             axis=1
         )
-        return r, unbuffered.reshape(-1, 1)
+        return r_forward, unbuffered.reshape(-1, 1)
 
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size, self.time_len)
 
 
-class VPUNonLin(BufferVPU):
+class VPUNonLin(VPU):
     """VPU with non-linearity on outputs."""
 
-    def iterate(self, input_data, r_backward=None):
+    def iterate(self, input_data, r_backward):
         """Iterate - same interfaces as parent.
 
         input_data is of length size.
         """
-        r, input_hat = super(VPUNonLin, self).iterate(
+        r, pred_inputs = super(VPUNonLin, self).iterate(
             input_data,
             r_backward
         )
         # Apply non-linearity to output r
         r_non_lin = non_linearity(r)
         # Apply non-lienarity to output input prediction
-        input_hat_non_lin = non_linearity(input_hat)
-        return r_non_lin, input_hat_non_lin
+        pred_inputs_non_lin = non_linearity(pred_inputs)
+        return r_non_lin, pred_inputs_non_lin
