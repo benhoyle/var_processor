@@ -12,7 +12,8 @@ class PowerIterator:
         Args:
             length: integer setting the 1D size of the eigenvector.
         """
-        # Initialise eigenvector as random vector - NOTE 8 BIT
+        # Initialise eigenvector as random vector - NOTE 8 bit
+        # THIS WILL BE RANDOM ANYWAY DUE TO INHERENT RANDOMNESS
         self.ev = np.random.randint(255, size=(length, 1))
         # Scale to have unit length (convert to integer values?)
         self.ev = self.ev / np.linalg.norm(self.ev)

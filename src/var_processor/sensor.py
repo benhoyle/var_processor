@@ -53,8 +53,7 @@ class Sensor:
             flattened = initial_frame.reshape(-1, 1)
             self.sensor_len = flattened.shape[0]
             num_stages = math.log(self.sensor_len, self.vec_len)
-            self.num_stages = int(num_stages)
-            self.power_len = self.vec_len**self.num_stages
+            self.power_len = self.vec_len**int(num_stages)
 
     def get_frame(self):
         """Get a 1D frame of data from the sensor."""

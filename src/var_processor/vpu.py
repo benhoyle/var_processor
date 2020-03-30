@@ -89,6 +89,27 @@ class VPU:
         input_hat = reconstruct(ev, r_combined)
         return r_combined, input_hat
 
+    def forward(self, input_data):
+        """A forward pass to generate cause - r.
+
+        Args:
+            input_data: 1D numpy array of length self.size.
+        Returns:
+            r: scalar feature detection output
+        """
+        # Update covariance matrix
+        self.update_cov(input_data)
+        cov = self.cu.covariance
+        # Power iterate
+        self.pi.iterate(cov=cov)
+        ev = self.pi.eigenvector
+        # Project
+        r_forward = project(input_data, ev)
+        return r_forward
+
+    def backward(self, r_backward):
+        pass
+
     def update_cov(self, input_data):
         """Update the covariance matrix.
 

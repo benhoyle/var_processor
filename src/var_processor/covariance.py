@@ -30,6 +30,11 @@ class CovarianceUnit:
         self.square_sum += (scale_factor**-1)*np.dot(x_dash, x_dash.T)
         # If the count reaches a threshold, can we divide the sums
         # by count and start from 1 again?
+        """if self.count == 1000:
+            self.x_sum = self.x_sum / 1000
+            self.square_sum / 1000
+            self.count = 1"""
+        # Causes accuracy to decrease
 
     @property
     def mean(self):

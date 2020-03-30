@@ -2,76 +2,10 @@
 Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
-from src.var_processor.covariance import CovarianceUnit
-from src.var_processor.power_iterator import PowerIterator
 from src.var_processor.vpu import (
     VPU, project, reconstruct, VPUNonLin, BufferVPU
 )
 from src.var_processor.time_stage import TimeStage
-
-
-def test_covariance_unit():
-    """Test the covariance unit."""
-    # Test initialising
-    cov_unit = CovarianceUnit(2)
-    assert not cov_unit.x_sum.any()
-    assert not cov_unit.square_sum.any()
-    # Test updating with data
-    ones = np.ones(shape=(2, 1))
-    cov_unit.update(ones)
-    assert cov_unit.count == 1
-    assert np.array_equal(cov_unit.x_sum, ones)
-    assert np.array_equal(cov_unit.mean, ones)
-    assert not cov_unit.covariance.any()
-    threes = ones*3
-    cov_unit.update(threes)
-    assert cov_unit.count == 2
-    assert np.array_equal(cov_unit.x_sum, ones+threes)
-    assert cov_unit.square_sum.any()
-    assert np.array_equal(cov_unit.mean, ones*2)
-    assert cov_unit.covariance.any()
-
-
-def test_covariance_computation():
-    """Statistical test that cov unit is determining the covariance."""
-    # Generate random positive definite matrix
-    cov = np.random.randn(3, 3)
-    cov = np.dot(cov, cov.T)
-    # Generate desired mean
-    mean = np.random.randn(3, 1)
-    # Use Cholesky decomposition to get L
-    L = np.linalg.cholesky(cov)
-    cov_unit = CovarianceUnit(3)
-    for _ in range(0, 10000):
-        sample = np.dot(L, np.random.randn(3, 1)) + mean
-        cov_unit.update(sample)
-    # Check within 10%
-    assert np.allclose(mean, cov_unit.mean, rtol=0.10)
-    assert np.allclose(cov, cov_unit.covariance, rtol=0.10)
-
-
-def test_power_iterator():
-    """Test power iterator."""
-    # Test initialise
-    power = PowerIterator(2)
-    ev1 = power.ev
-    assert ev1.any()
-    assert not power.cov.any()
-    # Check logic to avoid ev = nan
-    ev1_a = power.iterate()
-    assert np.array_equal(ev1, ev1_a)
-    # Check update with non-zero cov
-    random_cov = np.random.randint(255, size=(2, 2))
-    random_cov = random_cov / random_cov.max()
-    power.load_covariance(random_cov)
-    assert np.array_equal(power.cov, random_cov)
-    ev2 = power.iterate()
-    assert not np.array_equal(ev1, ev2)
-    assert np.array_equal(ev2, power.eigenvector)
-    assert power.eigenvalue > 0
-    # Check passing a cov
-    ev3 = power.iterate(cov=random_cov)
-    assert not np.array_equal(ev2, ev3)
 
 
 def test_project():
