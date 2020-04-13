@@ -1,7 +1,7 @@
 """Stage - stateless non-time stage."""
 
 import numpy as np
-from src.var_processor.vpu import VPUNonLin
+from src.var_processor.vpu import VPUBinary
 
 def pad_array(array_in, size):
     """Format array_in to make equal to size."""
@@ -31,7 +31,7 @@ class Stage:
         self.vec_len = vec_len
         self.stage_len = stage_len
         self.size = self.vec_len*self.stage_len
-        self.vpus = [VPUNonLin(vec_len) for _ in range(0, stage_len)]
+        self.vpus = [VPUBinary(vec_len) for _ in range(0, stage_len)]
         # Create a blank array for the causes
         self.causes = np.zeros(shape=(stage_len, 1))
         # Create a blank array for the predicted inputs

@@ -2,9 +2,9 @@
 Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
-from src.var_processor.vpu import (
-    VPU, project, VPUNonLin, BufferVPU
-)
+from src.var_processor.vpu import VPU, VPUBinary, project
+from src.var_processor.buffer_vpu import BufferVPU
+
 
 
 def test_project():
@@ -59,10 +59,10 @@ def test_buffer_vpu():
     assert not np.array_equal(old_cov, new_cov)
 
 
-def test_vpu_nonlin():
+def test_vpu_binary():
     """Test the VPU with non linearity."""
     # Intialise VPU
-    vpu = VPUNonLin(2)
+    vpu = VPUBinary(2)
     # Test Iteration
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(2, 1))
