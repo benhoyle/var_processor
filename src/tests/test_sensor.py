@@ -28,6 +28,7 @@ def test_sensor():
     data = sensor.get_frame()
     assert data.shape[0] == 3**10
     assert data.max() <= 1
+    sensor.source.stop()
 
 
 def test_stage():
