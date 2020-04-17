@@ -1,4 +1,8 @@
-"""Sensor - wraps an input source."""
+"""Sensor - wraps an input source.
+
+Can be thought of as an input pre-processor.
+
+"""
 
 import math
 import numpy as np

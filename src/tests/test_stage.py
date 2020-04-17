@@ -26,16 +26,25 @@ def test_stage():
     assert not stages.causes.any()
     assert not stages.pred_inputs.any()
     assert "10" in stages.__repr__()
-    # Check data in
     for _ in range(0, 100):
         data_in = np.random.randint(2, size=(stages.size, 1))
+        residual_in = data_in.copy()
         r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
-        causes1, pred_inputs1 = stages.iterate(data_in, r_backwards)
+        causes1, pred_inputs1 = stages.iterate(
+            data_in,
+            residual_in,
+            r_backwards
+        )
     # assert stages.causes.any()
     # assert stages.pred_inputs.any()
     for _ in range(0, 1000):
         data_in = np.random.randint(2, size=(stages.size, 1))
+        residual_in = data_in.copy()
         r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
-        causes2, pred_inputs2 = stages.iterate(data_in, r_backwards)
+        causes2, pred_inputs2 = stages.iterate(
+            data_in,
+            residual_in,
+            r_backwards
+        )
     assert not np.array_equal(causes1, causes2)
     assert not np.array_equal(pred_inputs1, pred_inputs2)

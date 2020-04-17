@@ -69,8 +69,13 @@ class Stack:
         pass
 
 
-    def iterate(self, orig_inputs, sw_residuals, stack_feedback):
+    def iterate(self, orig_input, sw_residuals, stack_feedback):
         """High level processing loop.
+
+        We have to implement the stack and switch together. The sw_residuals
+        require output from the for loop below. The switch has a set
+        of stages equal to the stack, each stage having a comparison
+        and a weighting.
 
         Args:
             orig_input: original un-switch-filtered input, list of

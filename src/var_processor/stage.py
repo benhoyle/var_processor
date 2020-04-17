@@ -37,11 +37,12 @@ class Stage:
         # Create a blank array for the predicted inputs
         self.pred_inputs = np.zeros(shape=(self.size, 1))
 
-    def iterate(self, stage_in, stage_feedback):
+    def iterate(self, stage_in, residual_in, stage_feedback):
         """Pass data to the stage for processing.
 
         Arg:
             stage_in - 1D numpy array with data to process.
+            residual_in - 1D numpy array with mix of predicted / original.
             stage_feedback - 1D numpy array with feedback data.
 
         Returns:
@@ -49,16 +50,19 @@ class Stage:
             pred_input - 1D numpy array with predicted input.
 
         """
+        # We could maybe skip below if we assumed sizes were correct
         input_array = pad_array(stage_in, self.size)
+        residual_array = pad_array(residual_in, self.size)
         # Iterate through VPUs, passing data in
         for i, vpu in enumerate(self.vpus):
             start = i*self.vec_len
             end = (i+1)*self.vec_len
             input_segment = input_array[start:end]
+            residual_segment = residual_array[start:end]
             feedback_segment = stage_feedback[i]
             vpu.update_cov(input_segment)
             cause, pred_input = vpu.iterate(
-                input_segment,
+                residual_segment,
                 feedback_segment
             )
             self.causes[i] = cause

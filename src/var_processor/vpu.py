@@ -75,7 +75,7 @@ class VPU:
         # Perform optional pre-processing
         processed_data = self.forward_processing(forward_data)
         cov = self.cu.covariance
-        # Power iterate - we could pass in here the input_data
+        # Power iterate - THIS COULD GO IN COV_UPDATE?
         self.pi.iterate(cov=cov)
         # Project
         r_forward = project(self.pi.eigenvector.T, processed_data)
