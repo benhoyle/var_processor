@@ -20,6 +20,20 @@ def resize(array, elem_num):
     return np.interp(x, xp, array.flatten()).reshape(-1, 1)
 
 
+def signal_adjust(signal, mean):
+    """Remove mean and turn to ternary signal in range {-1, 0, 1}."""
+    # Remove mean
+    zero_mean = signal - mean
+    # Get signs
+    signs = np.sign(zero_mean)
+    # PBThreshold - outputs values {-1, 0, 1}
+    rand_vals = np.random.uniform(size=zero_mean.shape)*mean
+    binary_values = np.where(np.abs(zero_mean) > rand_vals, 1, 0)
+    # Re-add in signs
+    signed = binary_values*signs
+    return signed
+
+
 class Sensor:
     """
     Object to process an incoming sensor signal.
@@ -29,13 +43,15 @@ class Sensor:
     by applying a bias and probabilistic thresholding.
     """
 
-    def __init__(self, sensor_source, vec_len, start=True):
+    def __init__(self, sensor_source, vec_len, start=True, m_batch=1000):
         """Initialise sensor.
 
         Arg:
             sensor_source - SensorSource object that outputs a
                 vector of sensor readings when iterated.
             vec_len - length of vector for VPU.
+            start - boolean to indicate whether to start on init.
+            m_batch - number of reading to batch for mean estimate
         """
         self.source = sensor_source
         self.vec_len = vec_len
@@ -45,6 +61,12 @@ class Sensor:
         self.power_len = None
         # Variable to store original sensor length
         self.sensor_len = None
+        # Add running signal mean measurement
+        self.signal_mean = None
+        self.sum = None
+        # Add count for mean & batch size
+        self.count = 0
+        self.m_batch = m_batch
         # Start sensor by default
         if start:
             self.start()
@@ -54,10 +76,45 @@ class Sensor:
         self.source.start()
         if not self.power_len:
             _, initial_frame = self.source.read()
+            # We might want to flatten video in local groups
             flattened = initial_frame.reshape(-1, 1)
             self.sensor_len = flattened.shape[0]
             num_stages = math.log(self.sensor_len, self.vec_len)
             self.power_len = self.vec_len**int(num_stages)
+            self.sum = np.zeros(shape=(self.power_len, 1))
+
+    def update_mean(self, signal):
+        """Update running mean estimate.
+
+        Args:
+            signal - reszied & flattened 1D numpy array of data.
+        """
+        self.sum += signal
+        self.count += 1
+        if self.count >= self.m_batch:
+            new_mean = self.sum/self.count
+            # If mean is empty set, else take an average
+            if self.signal_mean is None:
+                self.signal_mean = new_mean
+            else:
+                self.signal_mean = (self.signal_mean + new_mean)/2
+            # Reset sum
+            self.sum.fill(0)
+            self.count = 0
+        # Maybe too slow to compute this every frame?
+        return self.mean
+
+    @property
+    def mean(self):
+        """Get mean."""
+        if self.signal_mean is None:
+            if self.count:
+                output_mean = self.sum/self.count
+            else:
+                output_mean = None
+        else:
+            output_mean = self.signal_mean
+        return output_mean
 
     def get_frame(self):
         """Get a 1D frame of data from the sensor."""
@@ -69,10 +126,9 @@ class Sensor:
         flattened = initial_frame.reshape(-1, 1)
         # Resize to nearest power of vec_len
         output = resize(flattened, self.power_len)
-        # PBThreshold - do we need to add bias? Added below
-        rand_ints = 128+np.random.uniform(size=output.shape)*127
-        binary_values = np.where(output > rand_ints, 1, 0)
-        return binary_values
+        mean = self.update_mean(output)
+        signed = signal_adjust(output, mean)
+        return signed
 
     def get_data_length(self):
         """Return vector length of initial data."""
