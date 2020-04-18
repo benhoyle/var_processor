@@ -4,6 +4,7 @@ Run: pytest --cov=src --cov-report term-missing
 import numpy as np
 from src.var_processor.vpu import VPU, VPUBinary, project
 from src.var_processor.buffer_vpu import BufferVPU
+from src.tests.vpu_wrapper import VPUWrapper, signal_pre_processor
 
 
 def rand_same(size=2):
@@ -134,3 +135,22 @@ def test_vpu_function_diff():
         vpu.pi.eigenvector, np.sqrt(vpu.pi.eigenvalue))+vpu.cu.mean
     print(sample_1, np.flipud(sample_minus1))
     assert np.allclose(sample_1, np.flipud(sample_minus1), rtol=0.1, atol=0.1)
+
+
+def test_recontruction():
+    """Use the VPU Wrapper to test advanced function."""
+    # Initialise two VPUs and wrappers
+    data_in = np.random.randint(255, size=(2, 1))
+    mean = np.asarray([128, 128]).reshape(-1, 1)
+    vpu_1 = VPU(2)
+    vpu_2 = VPU(2)
+    wrapper_1 = VPUWrapper(vpu_1)
+    wrapper_2 = VPUWrapper(vpu_2)
+    for _ in range(0, 1000):
+        # First VPU
+        ternary_input = signal_pre_processor(data_in, mean)
+        _, _, residual = wrapper_1.iterate(ternary_input)
+        # Second VPU
+        _ = wrapper_2.iterate(residual)
+    est = (wrapper_1.pred_estimate*mean+mean)+(wrapper_2.pred_estimate*mean)
+    assert np.allclose(data_in, est, rtol=0.10, atol=10)
