@@ -19,6 +19,8 @@ class PowerIterator:
         self.ev = self.ev / np.linalg.norm(self.ev)
         # Define placeholder for covariance matrix
         self.cov = np.zeros(shape=(length, length))
+        # Define scaling factor as 1/sqrt(length)
+        self.scaler = 1 / np.sqrt(length)
 
     def iterate(self, power=1, cov=None):
         """One pass of iteration."""
@@ -31,12 +33,12 @@ class PowerIterator:
             self.ev = np.matmul(np.power(self.cov, power), self.ev)
             # Scale to have unit length (convert to integer values?)
             self.ev = self.ev / np.linalg.norm(self.ev)
-        return self.ev
+        return self.ev.copy()
 
     @property
     def eigenvector(self):
         """Return the top eigenvector."""
-        return self.ev
+        return self.ev.copy()
 
     @property
     def eigenvalue(self):
@@ -45,6 +47,11 @@ class PowerIterator:
         bottom = np.matmul(self.ev.T, self.ev)
         r = np.matmul(top_1, self.ev) / bottom
         return r
+
+    @property
+    def feature(self):
+        """Return eigenvector scaled to ternary space."""
+        return self.ev*self.scaler
 
     def load_covariance(self, cov):
         """Update the covariance matrix."""
