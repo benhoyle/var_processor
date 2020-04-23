@@ -20,13 +20,22 @@ def resize(array, elem_num):
     return np.interp(x, xp, array.flatten()).reshape(-1, 1)
 
 
-def signal_adjust(signal, mean):
-    """Remove mean and turn to ternary signal in range {-1, 0, 1}."""
+def signal_adjust(signal, mean, signal_max=255):
+    """Remove mean and turn to ternary signal in range {-1, 0, 1}.
+
+    Args:
+        signal - numpy array representing an input signal.
+        mean - numpy array representing the mean of the input signal.
+        signal_max - value indicating a maximum value for the input
+            signal - defaults to 255 (8-bit).
+    """
     # Remove mean
     zero_mean = signal - mean
     # Get signs
     signs = np.sign(zero_mean)
     # PBThreshold - outputs values {-1, 0, 1}
+    # We want symmetric mean for reconstruction
+    signal_max = np.minimum(mean, (signal_max - mean))
     rand_vals = np.random.uniform(size=zero_mean.shape)*mean
     binary_values = np.where(np.abs(zero_mean) > rand_vals, 1, 0)
     # Re-add in signs

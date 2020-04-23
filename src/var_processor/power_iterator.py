@@ -20,7 +20,7 @@ class PowerIterator:
         # Define placeholder for covariance matrix
         self.cov = np.zeros(shape=(length, length))
         # Define scaling factor as 1/sqrt(length)
-        self.scaler = 1 / np.sqrt(length)
+        self.scaler = np.sqrt(length) / length
 
     def iterate(self, power=1, cov=None):
         """One pass of iteration."""

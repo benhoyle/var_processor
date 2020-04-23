@@ -2,7 +2,9 @@
 
 import random
 import numpy as np
-from src.var_processor.covariance import CovarianceUnit
+from src.var_processor.covariance import (
+    CovarianceUnit, ZeroMeanCovarianceUnit
+)
 from src.var_processor.power_iterator import PowerIterator
 
 
@@ -116,6 +118,19 @@ class VPU:
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
+
+
+class VPUZeroMean(VPU):
+    """VPU assuming zero mean."""
+
+    def __init__(self, size):
+        """Initialise.
+
+        Args:
+            size: integer setting the 1D size of an input;
+        """
+        super(VPUZeroMean, self).__init__(size)
+        self.cu = ZeroMeanCovarianceUnit(size)
 
 
 class VPUBinary(VPU):
