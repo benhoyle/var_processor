@@ -76,9 +76,6 @@ class VPU:
         """
         # Perform optional pre-processing
         processed_data = self.forward_processing(forward_data)
-        cov = self.cu.covariance
-        # Power iterate - THIS COULD GO IN COV_UPDATE?
-        self.pi.iterate(cov=cov)
         # Project
         r_forward = project(self.pi.eigenvector.T, processed_data)
         # Perform optional post-processing
@@ -104,7 +101,7 @@ class VPU:
         processed_output = self.pred_input_processing(pred_inputs)
         return processed_output
 
-    def update_cov(self, input_data):
+    def update_cov(self, input_data, power_iterate=False):
         """Update the covariance matrix.
 
         Use this to bed in the covariance.
@@ -114,6 +111,10 @@ class VPU:
             This is the original rather than residual data.
         """
         self.cu.update(input_data)
+        if power_iterate:
+            cov = self.cu.covariance
+            # Power iterate - THIS COULD GO IN COV_UPDATE?
+            self.pi.iterate(cov=cov)
 
     def reset(self):
         """Reset and clear."""
@@ -175,3 +176,40 @@ class VPUBinary(VPU):
         # Remove bias
         r_b_out = r_backward - self.r_mean
         return r_b_out
+
+
+class VPUBinaryZM(VPUZeroMean):
+    """Let's update our functions modularly."""
+
+    def __init__(self, size):
+        """Adapted Init."""
+        super(VPUBinaryZM, self).__init__(size)
+        # Calculate scale factor here to save time later
+        self.scale_forward = np.sqrt(self.size)/self.size
+        self.scale_backward = self.size/np.sqrt(self.size)
+
+    def r_forward_processing(self, r_forward):
+        """Scale r to -1 to 1 and PBT."""
+        # Scale to ternary
+        scaled_r = r_forward*self.scale_forward
+        sign = np.sign(scaled_r)
+        rand_val = np.random.uniform()
+        binary_values = np.where(np.abs(scaled_r) > rand_val, 1, 0)
+        # resign and convert to 8-bit
+        binary_values = sign*binary_values.astype(np.uint8)
+        return binary_values
+
+    def r_backward_processing(self, r_backward):
+        """Rescale r to -L/sqrt(L) to L/sqrt(L) and PBT."""
+        # Scale to ternary
+        scaled_r = r_backward*self.scale_backward
+        return scaled_r
+
+    def pred_input_processing(self, pred_inputs):
+        """Apply PBT to get outputs in range -1, 0, 1."""
+        sign = np.sign(pred_inputs)
+        rand_val = np.random.uniform()
+        binary_values = np.where(np.abs(pred_inputs) > rand_val, 1, 0)
+        # resign and convert to 8-bit
+        binary_values = sign*binary_values.astype(np.uint8)
+        return binary_values

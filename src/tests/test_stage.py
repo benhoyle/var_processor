@@ -3,6 +3,7 @@ Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
 from src.var_processor.stage import Stage, pad_array
+from src.tests.vpu_wrapper import signal_pre_processor
 
 
 def test_pad_array():
@@ -48,3 +49,36 @@ def test_stage():
         )
     assert not np.array_equal(causes1, causes2)
     assert not np.array_equal(pred_inputs1, pred_inputs2)
+
+
+def test_stage_function():
+    """Test more advanced stage function."""
+    # Testing a stage
+    size = 256
+    vec_len = 4
+    buf_length = 100
+    stage = Stage(vec_len, size//vec_len)
+
+    # Generate fake data
+    data_in = np.random.randint(255, size=(size, 1))
+    mean = np.asarray([128]*size).reshape(-1, 1)
+
+    # Generate buffers for testing
+    input_buffer = np.zeros(shape=(size, buf_length))
+    pred_buffer = np.zeros(shape=(size, buf_length))
+    r_buffer = np.zeros(shape=(size//vec_len, buf_length))
+    residual_buffer = np.zeros(shape=(size, buf_length))
+
+    for i in range(0, buf_length):
+        # Convert to ternary
+        input_signal = signal_pre_processor(data_in, mean)
+        # Process stage
+        stage.update_cov(data_in)
+        causes = stage.forward(input_signal)
+        pred_inputs = stage.backward(causes)
+        input_buffer[:, i] = input_signal.ravel()
+        pred_buffer[:, i] = pred_inputs.ravel()
+        r_buffer[:, i] = causes.ravel()
+        residual_buffer[:, i] = (data_in - pred_inputs).ravel()
+    # Check for all ones
+    assert r_buffer.sum() < 256*buf_length

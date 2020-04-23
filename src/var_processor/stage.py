@@ -1,7 +1,8 @@
 """Stage - stateless non-time stage."""
 
 import numpy as np
-from src.var_processor.vpu import VPUBinary
+from src.var_processor.vpu import VPUBinaryZM
+
 
 def pad_array(array_in, size):
     """Format array_in to make equal to size."""
@@ -31,11 +32,54 @@ class Stage:
         self.vec_len = vec_len
         self.stage_len = stage_len
         self.size = self.vec_len*self.stage_len
-        self.vpus = [VPUBinary(vec_len) for _ in range(0, stage_len)]
+        self.vpus = [VPUBinaryZM(vec_len) for _ in range(0, stage_len)]
         # Create a blank array for the causes
         self.causes = np.zeros(shape=(stage_len, 1))
         # Create a blank array for the predicted inputs
         self.pred_inputs = np.zeros(shape=(self.size, 1))
+        # Helper data to keep indices
+        self.ranges = [
+            range(i*vec_len, (i+1)*vec_len)
+            for i in range(0, stage_len)
+        ]
+
+    def forward(self, forward_data):
+        """Forward pass through the stage (excludes cov update).
+
+        Args:
+            input_signal - 1D numpy array of length size.
+        Returns:
+            r - 1D numpy array of causes.
+
+        """
+        for i, vpu in enumerate(self.vpus):
+            forward_segment = forward_data[self.ranges[i]]
+            self.causes[i] = vpu.forward(forward_segment)
+        return self.get_causes()
+
+    def backward(self, r_backward):
+        """Backward pass through the stage.
+
+        Args:
+            r_backward - 1D numpy array of causes of stage_len.
+        Returns:
+            pred_inputs - 1D numpy array of length size of predicted inputs.
+
+        """
+        for i, vpu in enumerate(self.vpus):
+            feedback_segment = r_backward[i]
+            self.pred_inputs[self.ranges[i]] = vpu.backward(feedback_segment)
+        return self.get_pred_inputs()
+
+    def update_cov(self, input_data, power_iterate=True):
+        """Update covariance data.
+
+        Args:
+            input_data: 1D numpy array of length size.
+        """
+        for i, vpu in enumerate(self.vpus):
+            input_segment = input_data[self.ranges[i]]
+            vpu.update_cov(input_segment, power_iterate=power_iterate)
 
     def iterate(self, stage_in, residual_in, stage_feedback):
         """Pass data to the stage for processing.
@@ -50,24 +94,10 @@ class Stage:
             pred_input - 1D numpy array with predicted input.
 
         """
-        # We could maybe skip below if we assumed sizes were correct
-        input_array = pad_array(stage_in, self.size)
-        residual_array = pad_array(residual_in, self.size)
-        # Iterate through VPUs, passing data in
-        for i, vpu in enumerate(self.vpus):
-            start = i*self.vec_len
-            end = (i+1)*self.vec_len
-            input_segment = input_array[start:end]
-            residual_segment = residual_array[start:end]
-            feedback_segment = stage_feedback[i]
-            vpu.update_cov(input_segment)
-            cause, pred_input = vpu.iterate(
-                residual_segment,
-                feedback_segment
-            )
-            self.causes[i] = cause
-            self.pred_inputs[start:end] = pred_input
-        return self.get_causes(), self.get_pred_inputs()
+        self.update_cov(stage_in)
+        causes = self.forward(residual_in)
+        pred_inputs = self.backward(stage_feedback)
+        return causes, pred_inputs
 
     def get_causes(self):
         """Return output of VPUs as array."""

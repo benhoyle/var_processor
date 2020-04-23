@@ -71,9 +71,8 @@ class ZeroMeanCovarianceUnit:
         x is a 1D numpy array of length 'size'.
         """
         self.count += 1
-        x_dash = x
         scale_factor = self.count*(self.count+1)
-        self.square_sum += (scale_factor**-1)*np.dot(x_dash, x_dash.T)
+        self.square_sum += (scale_factor**-1)*np.dot(x, x.T)
         # If the count reaches a threshold, can we divide the sums
         # by count and start from 1 again?
         """if self.count == 1000:

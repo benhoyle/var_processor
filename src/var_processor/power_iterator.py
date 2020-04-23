@@ -30,7 +30,11 @@ class PowerIterator:
         # Check cov is not all zero - if all 0 you get nan
         if self.cov.any():
             # Times covariance by working eigenvector
-            self.ev = np.matmul(np.power(self.cov, power), self.ev)
+            if power == 1:
+                # Speed up for single power
+                self.ev = np.matmul(self.cov, self.ev)
+            else:
+                self.ev = np.matmul(np.power(self.cov, power), self.ev)
             # Scale to have unit length (convert to integer values?)
             self.ev = self.ev / np.linalg.norm(self.ev)
         return self.ev.copy()

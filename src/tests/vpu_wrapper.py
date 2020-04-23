@@ -56,30 +56,26 @@ class VPUWrapper:
         # Temp fields for output
         self.input_buffer = np.zeros(shape=(vpu.size, buf_length))
         self.pred_buffer = np.zeros(shape=(vpu.size, buf_length))
-        self.nl_pred_buffer = np.zeros(shape=(vpu.size, buf_length))
+        # self.nl_pred_buffer = np.zeros(shape=(vpu.size, buf_length))
         self.r_buffer = np.zeros(shape=(1, buf_length))
         self.residual_buffer = np.zeros(shape=(vpu.size, buf_length))
 
     def iterate(self, input_signal):
         """Iterate VPU."""
-        # Update covariance data of VPU
-        self.vpu.update_cov(input_signal)
-        # Get current covariance matrix
-        cov = self.vpu.cu.covariance
-        # Power iterate using covariance matrix
-        self.vpu.pi.iterate(cov=cov)
+        # Update covariance data of VPU & power iterate
+        self.vpu.update_cov(input_signal, power_iterate=True)
         # Get r
         r = self.vpu.forward(input_signal)
         pred = self.vpu.backward(r)
-        pred_nl = non_linearity(pred).astype(np.int8)
+        # pred_nl = non_linearity(pred).astype(np.int8)
         # Calculate residual
-        residual = input_signal.astype(np.int8) - pred_nl
+        residual = input_signal.astype(np.int8) - pred
         # Store last input and pred for output repr
         # Create rolling sum of inputs
         self.input_buffer = add_to_array(self.input_buffer, input_signal)
         # Add to rolling sum of predictions
         self.pred_buffer = add_to_array(self.pred_buffer, pred)
-        self.nl_pred_buffer = add_to_array(self.nl_pred_buffer, pred_nl)
+        # self.nl_pred_buffer = add_to_array(self.nl_pred_buffer, pred_nl)
         self.r_buffer = add_to_array(self.r_buffer, r)
         self.residual_buffer = add_to_array(self.residual_buffer, residual)
         return r, pred, residual
@@ -102,7 +98,10 @@ class VPUWrapper:
         return self.input_estimate - self.pred_estimate
 
     def __repr__(self):
-        """Get string status of VPU."""
+        """Get string status of VPU.
+
+            Optional - NL Predictions: {self.nl_pred_buffer[:,-1].T}
+        """
         return f"""
                 Input: {self.input_buffer[:,-1].T}
                 r: {self.r_buffer[:,-1]}
@@ -111,7 +110,6 @@ class VPUWrapper:
                 Scaled r: {self.r_buffer[:,-1]*np.sqrt(self.vpu.pi.eigenvalue)}
                 NL r: {non_linearity(self.r_buffer[:,-1])}
                 Predictions: {self.pred_buffer[:,-1].T}
-                NL Predictions: {self.nl_pred_buffer[:,-1].T}
                 Residual: {self.residual_buffer[:,-1].T}
                 ------------------------------
         """
