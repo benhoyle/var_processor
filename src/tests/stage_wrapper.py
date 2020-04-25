@@ -37,17 +37,32 @@ class StageWrapper:
 
         Args:
             input_signal - numpy 1D array of length size.
+
+        Returns:
+            causes - numpy 1D array of causes.
+            pred_inputs - numpy 1D array of predicted inputs.
+            residuals - numpy 1D array of residual inputs, clamped at -1, 0, 1.
+
         """
         # Process stage
         self.stage.update_cov(input_signal)
         causes = self.stage.forward(input_signal)
         pred_inputs = self.stage.backward(causes)
+        # Compute residuals and clamp at -1, 1
+        residuals = (input_signal - pred_inputs)
+        clamped_residuals = np.clip(residuals, -1, 1)
         i = self.count % self.buf_length
         self.input_buffer[:, i] = input_signal.ravel()
         self.pred_buffer[:, i] = pred_inputs.ravel()
         self.r_buffer[:, i] = causes.ravel()
-        self.residual_buffer[:, i] = (input_signal - pred_inputs).ravel()
+        self.residual_buffer[:, i] = clamped_residuals.ravel()
         self.count += 1
+        return causes, pred_inputs, clamped_residuals
+
+    @property
+    def pred_estimate(self):
+        """Return signal prediction."""
+        return (self.pred_buffer.sum(axis=1)/self.buf_length).reshape(-1, 1)
 
     def reconstruct(self, mean):
         """Reconstruct an input signal.
@@ -55,9 +70,7 @@ class StageWrapper:
         Args:
             mean - 1D numpy array of length size containing signal mean.
         """
-        pred_average = self.pred_buffer.sum(axis=1)/self.buf_length
-        pred_reconstruct = pred_average.reshape(-1, 1)*mean
-        return pred_reconstruct
+        return self.pred_estimate*mean
 
     def error(self, data_in, mean):
         """Get error between original signal and prediction.
