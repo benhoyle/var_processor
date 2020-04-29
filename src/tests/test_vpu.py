@@ -7,19 +7,66 @@ from src.var_processor.buffer_vpu import BufferVPU
 from src.tests.vpu_wrapper import VPUWrapper, signal_pre_processor
 
 
-def rand_same(size=2):
+def rand_same(size=2, negative=False):
     """Create 1D array of same binary values."""
     a = np.empty([size, 1])
-    a.fill(np.random.randint(2))
+    if not negative:
+        # Choose value that is 0 or 1
+        rand_int = np.random.randint(2)
+    else:
+        # Choose value that is -1, 0 or 1 with uniform distribution
+        rand_int = np.random.randint(3)
+    if rand_int == 0:
+        a.fill(0)
+    if rand_int == 1:
+        a.fill(1)
+    if rand_int == 2:
+        a.fill(-1)
     return a
 
 
-def rand_diff(size=2):
+def rand_diff(size=2, negative=False):
     """Create 1D array with single 1 and rest 0."""
     a = np.zeros([size, 1])
     index = np.random.randint(size)
-    a[index] = 1
+    if negative and np.random.randint(2):
+        a[index] = -1
+    else:
+        a[index] = 1
     return a
+
+
+def rand_opposite(size=2, negative=False):
+    """Create a 1D array with opposite values."""
+    # Create a random binary of size "size"
+    rand_array = np.random.randint(2, size=(size, 1))
+    if negative:
+        rand_array = np.where(rand_array == 0, -1, 1)
+    return rand_array
+
+
+def test_rand():
+    """Test random array generation as above."""
+    # Test rand_same with negative numbers
+    for i in range(0, 100):
+        assert (rand_same() >= 0).all()
+    neg_sum = 0
+    for i in range(0, 100):
+        if (rand_same(negative=True) < 0).all():
+            neg_sum += 1
+    # Check there are some negative values
+    assert neg_sum > 0
+    # Check zero mean
+    rolling_sum = np.zeros(shape=(2, 1))
+    for i in range(0, 1000):
+        rolling_sum = rolling_sum + rand_same(negative=True)
+    # Mean should be near 0
+    assert np.allclose(rolling_sum/1000, np.zeros(shape=(2, 1)), atol=0.1)
+    # Check opposites - for negative we should always have a sum of length
+    rand_array = rand_opposite(size=2, negative=True)
+    assert np.abs(rand_array).sum() == 2
+    rand_array = rand_opposite(size=3, negative=True)
+    assert np.abs(rand_array).sum() == 3
 
 
 def test_project():
