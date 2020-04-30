@@ -72,4 +72,4 @@ def ternary_pbt(data_in, max_abs_value):
     pbt_output = np.where(np.abs(data_in) > rand_ints, 1, 0)
     # Add to next stage (with signs returned)
     resigned = pbt_output*signs
-    return resigned
+    return resigned.astype(np.int8)

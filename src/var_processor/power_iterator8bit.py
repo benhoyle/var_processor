@@ -12,7 +12,9 @@ def normalise(array):
     sq_root_sum = np.sqrt((array**2).sum())
     # Watch the below - we need to bring the 127
     # onto the top to keep everything in integer space
-    scaled_array = (array*127//sq_root_sum)
+    # We need to take the signs out as // rounds down for -ve numbers
+    signs = np.sign(array)
+    scaled_array = (np.abs(array)*127//sq_root_sum)*signs
     return scaled_array.astype(np.int32)
 
 
