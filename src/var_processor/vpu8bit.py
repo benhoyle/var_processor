@@ -42,7 +42,12 @@ class VPU:
         return r_forward
 
     def r_backward_processing(self, r_backward):
-        """Process data to apply to output r_forward value."""
+        """Convert r to integer."""
+        # Convert numpy array to integer
+        if type(r_backward) is np.ndarray:
+            r_backward = r_backward.item()
+        else:
+            r_backward = int(r_backward)
         return r_backward
 
     def iterate(self, forward_data, r_backward):
@@ -94,7 +99,7 @@ class VPU:
         # Perform optional pre-processing
         processed_r_back = self.r_backward_processing(r_backward)
         # Use item to convert r to scalar
-        pred_inputs = project(processed_r_back.item(), self.pi.eigenvector)
+        pred_inputs = project(processed_r_back, self.pi.eigenvector)
         # Perform optional post-processing
         processed_output = self.pred_input_processing(pred_inputs)
         return processed_output
@@ -120,7 +125,7 @@ class VPU:
         self.__init__(self.size)
 
     def __repr__(self):
-        """String representation of class."""
+        """Return string representation of class."""
         string = (
             "\n-----\n"
             f"VPU of length {self.size}\n"
@@ -144,8 +149,18 @@ class BinaryVPU(VPU):
         return forward_data
 
     def r_forward_processing(self, r_forward):
-        """Scale r to -1 to 1 and PBT."""
+        """Scale r to -127 to 127 and PBT."""
         # Threshold r
         r_forward = r_forward//127
         pbt_output = ternary_pbt(r_forward, 127)
         return pbt_output
+
+    def pred_input_processing(self, pred_inputs):
+        """Apply PBT to get outputs in range -1, 0, 1."""
+        # Get non-zero eigenvector values
+        non_zeros = np.nonzero(pred_inputs.ravel())[0].shape[0]
+        if non_zeros > 0:
+            # Scale by sqrt of number of non-zeros
+            pred_inputs = pred_inputs*np.sqrt(non_zeros)
+        binary_values = ternary_pbt(pred_inputs, 127)
+        return binary_values

@@ -246,14 +246,30 @@ def test_vpu_binary():
         r = vpu.forward(rand_input)
         assert r in [-1, 0, 1]
 
-"""
+
+def test_forward_and_back():
+    """Test forward and back BinaryVPU function."""
+    size = 4
+    vpu = BinaryVPU(size)
+    for _ in range(0, 1000):
+        rand_val = np.random.randint(low=-1, high=2, size=(size, 1))
+        vpu.update_cov(rand_val, power_iterate=True)
+    for i in range(0, 100):
+        rand_input = np.random.randint(low=-1, high=2, size=(size, 1))
+        r = vpu.forward(rand_input)
+        pred_inputs = vpu.backward(r)
+        assert r in [-1, 0, 1]
+        assert pred_inputs.max() <= 1 and pred_inputs.min() >= -1
+        print(rand_input, r, pred_inputs)
+
+
 def test_recontruction():
-    ""Use the VPU Wrapper to test advanced function.""
+    """Use the VPU Wrapper to test advanced function."""
     # Initialise two VPUs and wrappers
-    data_in = np.random.randint(255, size=(2, 1))
-    mean = np.asarray([128, 128]).reshape(-1, 1)
-    vpu_1 = VPU(2)
-    vpu_2 = VPU(2)
+    data_in = np.random.randint(254, size=(2, 1))
+    mean = np.asarray([127, 127]).reshape(-1, 1)
+    vpu_1 = BinaryVPU(2)
+    vpu_2 = BinaryVPU(2)
     wrapper_1 = VPUWrapper(vpu_1)
     wrapper_2 = VPUWrapper(vpu_2)
     for _ in range(0, 1000):
@@ -264,4 +280,3 @@ def test_recontruction():
         _ = wrapper_2.iterate(residual)
     est = (wrapper_1.pred_estimate*mean+mean)+(wrapper_2.pred_estimate*mean)
     assert np.allclose(data_in, est, rtol=0.10, atol=10)
-"""
