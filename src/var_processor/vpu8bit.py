@@ -118,3 +118,34 @@ class VPU:
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
+
+    def __repr__(self):
+        """String representation of class."""
+        string = (
+            "\n-----\n"
+            f"VPU of length {self.size}\n"
+            "\n-----\n"
+            f"Power Iterator: {self.pi.__repr__()}\n"
+            "\n-----\n"
+            f"Covariance:{self.cu.__repr__()}\n"
+            "\n-----\n"
+            "\n-----\n"
+        )
+        return string
+
+
+class BinaryVPU(VPU):
+    """Let's update our functions modularly."""
+
+    def forward_processing(self, forward_data):
+        """Process data to apply to forward input data."""
+        if forward_data.any():
+            forward_data = forward_data*127//np.linalg.norm(forward_data)
+        return forward_data
+
+    def r_forward_processing(self, r_forward):
+        """Scale r to -1 to 1 and PBT."""
+        # Threshold r
+        r_forward = r_forward//127
+        pbt_output = ternary_pbt(r_forward, 127)
+        return pbt_output

@@ -2,7 +2,7 @@
 Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
-from src.var_processor.vpu8bit import VPU, project
+from src.var_processor.vpu8bit import VPU, project, BinaryVPU
 from src.var_processor.buffer_vpu import BufferVPU
 from src.tests.vpu_wrapper import VPUWrapper, signal_pre_processor
 
@@ -121,26 +121,6 @@ def test_buffer_vpu():
     assert not np.array_equal(old_cov, new_cov)
 
 
-def test_vpu_binary():
-    """Test the VPU with non linearity."""
-    """# Intialise VPU
-    vpu = VPUBinary(2)
-    # Test Iteration
-    for _ in range(0, 100):
-        data_in = np.random.randint(2, size=(2, 1))
-        r_backward = np.random.randint(2, size=(1, 1))
-        vpu.update_cov(data_in)
-        cause, residual = vpu.iterate(data_in, r_backward)
-    old_cov = vpu.cu.covariance
-    assert old_cov.any()
-    assert cause == 0 or cause == 1
-    assert residual.shape == (2, 1)
-    vpu.reset()
-    new_cov = vpu.cu.covariance
-    assert not np.array_equal(old_cov, new_cov)"""
-    pass
-
-
 def test_vpu_function_same():
     """More advanced testing of VPU function."""
     size = 2
@@ -176,31 +156,97 @@ def test_vpu_function_same():
     root_four = np.ones(shape=(size, 1))*(127)*(np.sqrt(size)/size)
     assert np.allclose(np.abs(vpu.pi.eigenvector), root_four, atol=5)
 
-"""
+
 def test_vpu_function_diff():
-    ""Test random different 1D length 2 binary arrays.""
-    vpu = VPU(2)
+    """Test random different 1D length 2 binary arrays."""
+    size = 2
+    vpu = VPU(size)
+    # Test with differences
     for _ in range(0, 1000):
-        vpu.update_cov(rand_diff())
-        vpu.pi.iterate(cov=vpu.cu.covariance)
-    # Check diagonal values of covariance matrix are the same
-    # Use https://docs.scipy.org/doc/numpy/reference/
-    # generated/numpy.diagonal.html
-    print(vpu.cu.covariance[0], -1*vpu.cu.covariance[-1])
-    assert np.allclose(vpu.cu.covariance[0], -1*vpu.cu.covariance[-1])
-    # Check eigenvector has values of root 2
-    print(vpu.pi.eigenvector, 1/np.sqrt(2))
-    assert np.allclose(np.abs(vpu.pi.eigenvector), 1/np.sqrt(2))
-    # Check different signs
-    assert np.allclose(vpu.pi.eigenvector[0], -1*vpu.pi.eigenvector[1])
-    sample_1 = np.dot(
-        vpu.pi.eigenvector, np.sqrt(vpu.pi.eigenvalue))+vpu.cu.mean
-    sample_minus1 = -1*np.dot(
-        vpu.pi.eigenvector, np.sqrt(vpu.pi.eigenvalue))+vpu.cu.mean
-    print(sample_1, np.flipud(sample_minus1))
-    assert np.allclose(sample_1, np.flipud(sample_minus1), rtol=0.1, atol=0.1)
+        vpu.update_cov(rand_diff(size=size), power_iterate=True)
+    half_I_matrix = np.identity(size)*(127/2)
+    assert np.allclose(vpu.cu.covariance, half_I_matrix, atol=15)
+    # Eigenvalues should be 0, 127 or vice versa and negatives
+    assert np.allclose(np.abs(vpu.pi.eigenvector).sum(), 127, atol=5)
+    # Test forward projection
+    ones = np.ones(shape=(2, 1), dtype=np.int8)
+    processed_data = ones*(np.sqrt(2)/2)
+    r = vpu.forward(processed_data).astype(np.int8)
+    assert np.allclose(np.abs(r), 89, atol=5)
+    # Test with ternary values
+    size = 2
+    vpu = VPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(
+            rand_same(size=size, negative=True),
+            power_iterate=True
+        )
+    # Eigenvector is still the same
+    root_two = np.ones(shape=(size, 1))*(127)*(np.sqrt(size)/size)
+    assert np.allclose(np.abs(vpu.pi.eigenvector), root_two, atol=5)
+    # Test with size = 4
+    size = 4
+    vpu = VPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(rand_same(negative=True, size=size), power_iterate=True)
+    # Check all values of covariance matrix are the same
+    root_four = np.ones(shape=(size, 1))*(127)*(np.sqrt(size)/size)
+    assert np.allclose(np.abs(vpu.pi.eigenvector), root_four, atol=5)
 
 
+def test_vpu_binary():
+    """Test the VPU with non linearity."""
+    # Check with size two and different entries
+    size = 2
+    vpu = BinaryVPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(rand_diff(size=size), power_iterate=True)
+    assert np.allclose(np.abs(vpu.pi.eigenvector).sum(), 127, atol=5)
+    sum_r = 0
+    for i in range(0, 100):
+        rand_input = np.random.randint(low=-1, high=2, size=(2, 1))
+        r = vpu.forward(rand_input)
+        assert r in [-1, 0, 1]
+        sum_r += r
+    assert sum_r < 100 and sum_r > -100
+    # Check with size = 4
+    size = 4
+    vpu = BinaryVPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(rand_diff(size=size), power_iterate=True)
+    assert np.allclose(np.abs(vpu.pi.eigenvector).sum(), 127, atol=5)
+    for i in range(0, 100):
+        rand_input = np.random.randint(low=-1, high=2, size=(size, 1))
+        r = vpu.forward(rand_input)
+        assert r in [-1, 0, 1]
+    # Check same entries for size = 4
+    size = 4
+    vpu = BinaryVPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(rand_same(size=size), power_iterate=True)
+    assert np.allclose(
+        np.abs(vpu.pi.eigenvector),
+        63*np.ones(shape=(size, 1))
+    )
+    for i in range(0, 100):
+        rand_input = np.random.randint(low=-1, high=2, size=(size, 1))
+        r = vpu.forward(rand_input)
+        assert r in [-1, 0, 1]
+    # Check same with negatives
+    size = 4
+    vpu = BinaryVPU(size)
+    for _ in range(0, 1000):
+        vpu.update_cov(rand_same(negative=True, size=size), power_iterate=True)
+    assert np.allclose(
+        np.abs(vpu.pi.eigenvector),
+        63*np.ones(shape=(size, 1))
+    )
+    for i in range(0, 100):
+        rand_input = np.random.randint(low=-1, high=2, size=(size, 1))
+        r = vpu.forward(rand_input)
+        assert r in [-1, 0, 1]
+
+"""
 def test_recontruction():
     ""Use the VPU Wrapper to test advanced function.""
     # Initialise two VPUs and wrappers
