@@ -1,11 +1,9 @@
 """Variance Processing Unit."""
 
-import random
 import numpy as np
-from src.var_processor.covariance import (
-    CovarianceUnit, ZeroMeanCovarianceUnit
-)
+from src.var_processor.covariance import CovarianceUnit
 from src.var_processor.power_iterator import PowerIterator
+from src.var_processor.pb_threshold import ternary_pbt
 
 
 def project(vec_1, vec_2):
@@ -44,7 +42,12 @@ class VPU:
         return r_forward
 
     def r_backward_processing(self, r_backward):
-        """Process data to apply to output r_forward value."""
+        """Convert r to integer."""
+        # Convert numpy array to integer
+        if type(r_backward) is np.ndarray:
+            r_backward = r_backward.item()
+        else:
+            r_backward = int(r_backward)
         return r_backward
 
     def iterate(self, forward_data, r_backward):
@@ -96,7 +99,7 @@ class VPU:
         # Perform optional pre-processing
         processed_r_back = self.r_backward_processing(r_backward)
         # Use item to convert r to scalar
-        pred_inputs = project(processed_r_back.item(), self.pi.eigenvector)
+        pred_inputs = project(processed_r_back, self.pi.eigenvector)
         # Perform optional post-processing
         processed_output = self.pred_input_processing(pred_inputs)
         return processed_output
@@ -110,106 +113,59 @@ class VPU:
             input_data: 1D numpy array of length self.size.
             This is the original rather than residual data.
         """
-        self.cu.update(input_data)
+        self.cu.update_cov(input_data)
         if power_iterate:
             cov = self.cu.covariance
-            # Power iterate - THIS COULD GO IN COV_UPDATE?
-            self.pi.iterate(cov=cov)
+            # Power iterate
+            self.pi.load_covariance(cov)
+            self.pi.iterate()
 
     def reset(self):
         """Reset and clear."""
         self.__init__(self.size)
 
-
-class VPUZeroMean(VPU):
-    """VPU assuming zero mean."""
-
-    def __init__(self, size):
-        """Initialise.
-
-        Args:
-            size: integer setting the 1D size of an input;
-        """
-        super(VPUZeroMean, self).__init__(size)
-        self.cu = ZeroMeanCovarianceUnit(size)
-
-
-class VPUBinary(VPU):
-    """VPU with unbiasing and non-linearity on outputs."""
-
-    def __init__(self, size):
-        """Initialise."""
-        super(VPUBinary, self).__init__(size)
-        self.r_sum = 0
-        self.r_count = 0
-
     @property
-    def r_mean(self):
-        """Get mean r."""
-        return self.r_sum / self.r_count
+    def eigenvector(self):
+        """Return eigenvector."""
+        return self.pi.eigenvector
+
+    def __repr__(self):
+        """Return string representation of class."""
+        string = (
+            "\n-----\n"
+            f"VPU of length {self.size}\n"
+            "\n-----\n"
+            f"Power Iterator: {self.pi.__repr__()}\n"
+            "\n-----\n"
+            f"Covariance:{self.cu.__repr__()}\n"
+            "\n-----\n"
+            "\n-----\n"
+        )
+        return string
+
+
+class BinaryVPU(VPU):
+    """Let's update our functions modularly."""
 
     def forward_processing(self, forward_data):
         """Process data to apply to forward input data."""
-        return forward_data - self.cu.mean
-
-    def pred_input_processing(self, pred_inputs):
-        """Process data to apply to output predicted inputs."""
-        # Add bias
-        processed_output = pred_inputs + self.cu.mean
-        # Convert to binary
-        rand_vals = np.random.uniform(size=processed_output.shape)
-        binary_values = np.where(processed_output > rand_vals, 1, 0)
-        return binary_values.astype(np.uint8)
+        if forward_data.any():
+            forward_data = forward_data*127//np.linalg.norm(forward_data)
+        return forward_data
 
     def r_forward_processing(self, r_forward):
-        """Process data to apply to output r_forward value."""
-        self.r_sum += r_forward
-        self.r_count += 1
-        # Add bias
-        r_f_out = r_forward + self.r_mean
-        # Convert to binary
-        binary_value = r_f_out > random.random()
-        return binary_value
-
-    def r_backward_processing(self, r_backward):
-        """Process data to apply to output r_forward value."""
-        # Remove bias
-        r_b_out = r_backward - self.r_mean
-        return r_b_out
-
-
-class VPUBinaryZM(VPUZeroMean):
-    """Let's update our functions modularly."""
-
-    def __init__(self, size):
-        """Adapted Init."""
-        super(VPUBinaryZM, self).__init__(size)
-        # Calculate scale factor here to save time later
-        self.scale_forward = np.sqrt(self.size)/self.size
-        self.scale_backward = self.size/np.sqrt(self.size)
-
-    def r_forward_processing(self, r_forward):
-        """Scale r to -1 to 1 and PBT."""
-        # Scale to ternary
-        scaled_r = r_forward*self.scale_forward
-        sign = np.sign(scaled_r)
-        rand_val = np.random.uniform()
-        binary_values = np.where(np.abs(scaled_r) > rand_val, 1, 0)
-        # resign and convert to 8-bit
-        binary_values = sign*binary_values.astype(np.uint8)
-        return binary_values
-
-    def r_backward_processing(self, r_backward):
-        """Rescale r to -L/sqrt(L) to L/sqrt(L) and PBT."""
-        # Scale to ternary
-        scaled_r = r_backward*self.scale_backward
-        return scaled_r
+        """Scale r to -127 to 127 and PBT."""
+        # Threshold r
+        r_forward = r_forward//127
+        pbt_output = ternary_pbt(r_forward, 127)
+        return pbt_output
 
     def pred_input_processing(self, pred_inputs):
         """Apply PBT to get outputs in range -1, 0, 1."""
-        sign = np.sign(pred_inputs)
-        rand_val = np.random.uniform()
-        binary_values = np.where(np.abs(pred_inputs) > rand_val, 1, 0)
-        # resign and convert to 8-bit
-        binary_values = sign*binary_values.astype(np.uint8)
+        # Get non-zero eigenvector values
+        non_zeros = np.nonzero(pred_inputs.ravel())[0].shape[0]
+        if non_zeros > 0:
+            # Scale by sqrt of number of non-zeros
+            pred_inputs = pred_inputs*np.sqrt(non_zeros)
+        binary_values = ternary_pbt(pred_inputs, 127)
         return binary_values

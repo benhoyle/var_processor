@@ -1,7 +1,7 @@
 """Stage - stateless non-time stage."""
 
 import numpy as np
-from src.var_processor.vpu import VPUBinaryZM
+from src.var_processor.vpu import BinaryVPU
 
 
 def pad_array(array_in, size):
@@ -32,11 +32,11 @@ class Stage:
         self.vec_len = vec_len
         self.stage_len = stage_len
         self.size = self.vec_len*self.stage_len
-        self.vpus = [VPUBinaryZM(vec_len) for _ in range(0, stage_len)]
+        self.vpus = [BinaryVPU(vec_len) for _ in range(0, stage_len)]
         # Create a blank array for the causes
-        self.causes = np.zeros(shape=(stage_len, 1))
+        self.causes = np.zeros(shape=(stage_len, 1), dtype=np.int8)
         # Create a blank array for the predicted inputs
-        self.pred_inputs = np.zeros(shape=(self.size, 1))
+        self.pred_inputs = np.zeros(shape=(self.size, 1), dtype=np.int8)
         # Helper data to keep indices
         self.ranges = [
             range(i*vec_len, (i+1)*vec_len)
@@ -106,6 +106,11 @@ class Stage:
     def get_pred_inputs(self):
         """Return predicted inputs as array."""
         return self.pred_inputs.copy()
+
+    def get_eigenvectors(self):
+        """Return a list of eigenvectors from the VPUs."""
+        evs = [vpu.eigenvector for vpu in self.vpus]
+        return evs
 
     def __repr__(self):
         """Print layer information."""

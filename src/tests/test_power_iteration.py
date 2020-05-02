@@ -1,77 +1,53 @@
-"""Test Power Iterator.
+"""Test Power Iterator - 8bit.
 Run: pytest --cov=src --cov-report term-missing
+
+Can replace other test if we use it in due course.
 """
 
 import numpy as np
-from src.var_processor.power_iterator import PowerIterator
-
-
-def test_power_iterator():
-    """Test power iterator."""
-    # Test initialise
-    power = PowerIterator(2)
-    ev1 = power.ev
-    assert ev1.any()
-    assert not power.cov.any()
-    # Check logic to avoid ev = nan
-    ev1_a = power.iterate()
-    assert np.array_equal(ev1, ev1_a)
-    # Check update with non-zero cov
-    random_cov = np.random.randint(255, size=(2, 2))
-    random_cov = random_cov / random_cov.max()
-    power.load_covariance(random_cov)
-    assert np.array_equal(power.cov, random_cov)
-    ev2 = power.iterate()
-    assert not np.array_equal(ev1, ev2)
-    assert np.array_equal(ev2, power.eigenvector)
-    assert power.eigenvalue > 0
-    # Check passing a cov
-    ev3 = power.iterate(cov=random_cov)
-    assert not np.array_equal(ev2, ev3)
+from src.var_processor.power_iterator import (
+    PowerIterator, normalise
+)
 
 
 def init_power(size):
     """Helper function."""
     # Test with length = size
-    cov = np.random.randn(size, size)
-    cov = np.dot(cov, cov.T)
-    cov = cov / cov.max()
+    cov = np.random.uniform(low=-127, high=127, size=(size, size))
+    cov = np.dot(cov.T, cov)//(127*np.sqrt(size))
+    # Clip to avoid under/overflow
+    cov = np.clip(cov, -127, 127)
+    print(cov)
+    random_cov = cov.astype(np.int8)
     # Generate test power iterator
     power = PowerIterator(size)
-    power.load_covariance(cov)
+    power.load_covariance(random_cov)
     for _ in range(0, 1000):
         power.iterate()
-    return power, cov
+    return power, random_cov
 
 
-def test_power_computation():
+def test_normalise():
+    """Test normalising an array using the L2 norm."""
+    rand_vals = np.random.randint(low=-127, high=128, size=(4, 1))
+    # Norm using function
+    scaled = normalise(rand_vals)
+    # Norm using linalg function
+    linalg = ((rand_vals / np.linalg.norm(rand_vals))*127).astype(np.int8)
+    assert np.allclose(scaled, linalg, atol=5)
+
+
+def test_eigenvector():
     """Test power iterator is finding the eigenvector and value."""
-    power, cov = init_power(3)
-    evec = power.eigenvector
-    evalue = power.eigenvalue
-    # Use numpy linear algebra to determine eigenvectors and values
-    w, v = np.linalg.eig(cov)
-    # Check eigenvectors are close (abs removes difference in sign)
-    assert np.allclose(
-        abs(evec.T), abs(v[:, np.argmax(w)]), rtol=0.05, atol=0.05)
-    # Check eigenvalues are close
-    assert np.allclose(evalue, w[np.argmax(w)], rtol=0.05, atol=0.05)
-
-
-def test_feature_scaling_2():
-    """Test that the features are scaled to have max of 1."""
-    # Test with length = 2
-    p_2, _ = init_power(2)
-    e_2 = p_2.eigenvector
-    assert np.array_equal(p_2.feature, e_2*(np.sqrt(2)/2))
-    assert np.max(np.abs(p_2.feature)) <= 1
-
-
-def test_feature_scaling_3():
-    """Test that the features are scaled to have max of 1."""
-    # Test with length = 3
-    p_3, _ = init_power(3)
-    # Not a timing thing - added time.sleep still had error
-    # Why does 2 work but not 3? Works when in different functions!
-    assert np.array_equal(p_3.feature, p_3.eigenvector*(np.sqrt(3)/3))
-    assert np.max(np.abs(p_3.feature)) <= 1
+    for _ in range(0, 100):
+        random_size = np.random.randint(low=2, high=6)
+        power, cov = init_power(random_size)
+        evec = power.eigenvector
+        evalue = power.eigenvalue
+        # Use numpy linear algebra to determine eigenvectors and values
+        w, v = np.linalg.eig(cov)
+        # Check eigenvectors are close (abs removes difference in sign)
+        assert np.allclose(
+            abs(evec.T), abs(v[:, np.argmax(w)]*127), atol=10)
+        # Check eigenvalues are close
+        assert np.allclose(evalue, w[np.argmax(w)], atol=5)

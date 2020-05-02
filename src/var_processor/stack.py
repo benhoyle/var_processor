@@ -41,13 +41,22 @@ class Stack:
             for i in range(0, self.num_stages)
         ]
 
-    def forward(self, sw_residuals):
+    def forward(self, input_data, update_cov=True):
         """Forward pass through the stack.
 
         Args:
-            sw_residuals: weighted residuals from switch, list of arrays.
+            input_data: 1D numpy array of ternary data.
+        Returns:
+            causes - numpy 1D array of causes.
+
         """
-        pass
+        # Iterate forward through the stages
+        for stage in self.stages:
+            if update_cov:
+                stage.update_cov(input_data)
+            input_signal = stage.forward(input_data)
+        # Return scalar output from stack
+        return input_signal
 
     def backward(self, stack_feedback):
         """Backward pass through the stack.
@@ -55,63 +64,35 @@ class Stack:
         Args:
             stack_feedback: feedback for last stage, scalar.
         """
-        pass
+        feedback_data = stack_feedback
+        # Iterate through the stages backwards
+        for stage in reversed(self.stages):
+            feedback_data = stage.backward(feedback_data)
+        # Return predicted data for stack
+        return feedback_data
 
-    def update_cov(self, orig_input):
-        """Update the covariance matrices.
+    def update_cov(self, input_data):
+        """Update the covariance matrices in a series of stages.
 
-        Run after computing the FF outputs in a forward pass.
+        We only have the input data for a next stage after a previous
+        stage has finished.
 
-        Args:
-            orig_input: original un-switch-filtered input as array.
-        """
-        # for stage in stages:
-        pass
-
-
-    def iterate(self, orig_input, sw_residuals, stack_feedback):
-        """High level processing loop.
-
-        We have to implement the stack and switch together. The sw_residuals
-        require output from the for loop below. The switch has a set
-        of stages equal to the stack, each stage having a comparison
-        and a weighting.
+        It makes more sense to update covariance as part of a forward
+        pass?
 
         Args:
-            orig_input: original un-switch-filtered input, list of
-                arrays.
-            sw_residuals: weighted residuals from switch, list of arrays.
-            stack_feedback: feedback for last stage, scalar.
-
-        Returns:
-            ff_outputs: FF outputs from each stage.
-            predictions: FB outputs from each stage.
-
+            input_data: 1D numpy array of ternary data.
         """
-        # How do we get current prediction when we haven't iterated?
-        # Get prediction from last time stamp?
-        # Or do a forward pass first, then do a backard pass?
-        for i in range(0, self.num_stages-1):
-            # Get predicted inputs for current stage
-            prediction = self.stages[i].get_pred_inputs()
-            # Compute FF input by adding residuals to prediction
-            stage_ff_input = sw_residuals[i] + prediction
-            # Get FB input from next stage
-            stage_fb_input = self.stages[i+1].get_pred_inputs()
-            # Iterate current FF stage
-            feedforward, _ = self.stages[i].iterate(
-                orig_inputs[i],
-                stage_ff_input,
-                stage_fb_input
-            )
-        # Then feedforward to last stage with stack_feedback
-        feedforward, _ = self.stages[-1].iterate(
-            orig_inputs[-1],
-            feedforward,
-            stack_feedback
-        )
-        # Return r_out for last stage
-        return feedforward
+        # Update first stage
+        self.stages[0].update_cov(input_data)
+        # Perform a forward pass to get the causes
+        self.forward(input_data)
+        # Update each stage after the first using the causes
+        for i in range(1, self.num_stages):
+            # Get input data from previous stage
+            input_data = self.stages[i-1].get_causes()
+            # Pass to next stage to update_cov
+            self.stages[i].update_cov(input_data)
 
     def get_causes(self):
         """Return causes as a list of arrays."""
@@ -138,3 +119,8 @@ class Stack:
         cause_lengths = [cause.shape[0] for cause in causes]
         pred_lengths = [pred.shape[0] for pred in pred_inputs]
         return cause_lengths, pred_lengths
+
+    def get_eigenvectors(self):
+        """Return a list of eigenvectors from the VPUs."""
+        evs = [stage.get_eigenvectors() for stage in self.stages]
+        return evs

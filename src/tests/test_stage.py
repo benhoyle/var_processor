@@ -3,7 +3,7 @@ Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
 from src.var_processor.stage import Stage, pad_array
-from src.tests.vpu_wrapper import signal_pre_processor
+from src.var_processor.pb_threshold import signal_pre_processor
 
 
 def test_pad_array():

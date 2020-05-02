@@ -1,47 +1,130 @@
-"""Test Covariance.
+"""Test Covariance 8-bit version.
 Run: pytest --cov=src --cov-report term-missing
+
+This can run in parallel with test_covariance and eventually replace
+that file.
+
 """
 
 import numpy as np
+
 from src.var_processor.covariance import CovarianceUnit
+from src.tests.test_vpu import rand_same, rand_diff, rand_opposite
 
 
-def test_covariance_unit():
-    """Test the covariance unit."""
-    # Test initialising
-    cov_unit = CovarianceUnit(2)
-    assert not cov_unit.x_sum.any()
-    assert not cov_unit.square_sum.any()
-    # Test updating with data
-    ones = np.ones(shape=(2, 1))
-    cov_unit.update(ones)
-    assert cov_unit.count == 1
-    assert np.array_equal(cov_unit.x_sum, ones)
-    assert np.array_equal(cov_unit.mean, ones)
-    assert not cov_unit.covariance.any()
-    threes = ones*3
-    cov_unit.update(threes)
-    assert cov_unit.count == 2
-    assert np.array_equal(cov_unit.x_sum, ones+threes)
-    assert cov_unit.square_sum.any()
-    assert np.array_equal(cov_unit.mean, ones*2)
-    assert cov_unit.covariance.any()
+def test_covariance():
+    """Simple tests."""
+    # Test iterating with one stage
+    cov_unit = CovarianceUnit(2, stages=2)
+    for _ in range(0, 300):
+        data = rand_same(negative=True)
+        cov_unit.update_cov(data)
 
 
-def test_covariance_computation():
-    """Statistical test that cov unit is determining the covariance."""
-    # Generate random positive definite matrix
-    cov = np.random.randn(3, 3)
-    cov = np.dot(cov, cov.T)
-    cov = cov / cov.max()
-    # Generate desired mean
-    mean = np.random.randn(3, 1)
-    # Use Cholesky decomposition to get L
-    L = np.linalg.cholesky(cov)
-    cov_unit = CovarianceUnit(3)
-    for _ in range(0, 10000):
-        sample = np.dot(L, np.random.randn(3, 1)) + mean
-        cov_unit.update(sample)
-    # Check within 10%
-    assert np.allclose(mean, cov_unit.mean, rtol=0.10, atol=0.05)
-    assert np.allclose(cov, cov_unit.covariance, rtol=0.10, atol=0.05)
+def test_different_sign():
+    """Test applying with different sign."""
+    size = 2
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        data = rand_same(negative=True)
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(cov_unit.covariance/127, np.cov(data_buffer))
+    assert np.allclose(cov_unit.covariance/127, np.cov(data_buffer), atol=0.2)
+
+
+def test_non_neg():
+    """Test applying with binary only input (i.e. positive)."""
+    size = 2
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        data = rand_same(negative=False)
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(cov_unit.covariance/254, np.cov(data_buffer))
+    assert np.allclose(cov_unit.covariance/254, np.cov(data_buffer), atol=0.1)
+
+
+def test_opposite():
+    """Test with opposite signs."""
+    size = 3
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        data = rand_opposite(size=size, negative=True)
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(data_buffer.mean(axis=1), "\n" )
+    # print(cov_unit.covariance/127, "\n\n", np.cov(data_buffer))
+    assert np.allclose(
+        data_buffer.mean(axis=1), np.zeros(shape=(2, 1)), atol=0.1)
+    assert np.allclose(cov_unit.covariance/127, np.cov(data_buffer), atol=0.2)
+
+
+def test_diff_neg():
+    """Test applying with ternary input with different elements."""
+    size = 2
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        data = rand_diff(negative=True)
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(data_buffer.mean(axis=1), )
+    # print(cov_unit.covariance/127, np.cov(data_buffer))
+    assert np.allclose(
+        data_buffer.mean(axis=1), np.zeros(shape=(2, 1)), atol=0.1)
+    assert np.allclose(cov_unit.covariance/127, np.cov(data_buffer), atol=0.1)
+
+
+def test_random():
+    """Test applying with random ternary input."""
+    size = 4
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        data = np.random.randint(low=-1, high=2, size=(size, 1))
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(data_buffer.mean(axis=1), )
+    # print(cov_unit.covariance/127, "\n", np.cov(data_buffer))
+    assert np.allclose(
+        data_buffer.mean(axis=1), np.zeros(shape=(2, 1)), atol=0.1)
+    assert np.allclose(cov_unit.covariance/127, np.cov(data_buffer), atol=0.15)
+
+
+def test_half_half():
+    """Test applying with random ternary input."""
+    size = 4
+    buf_length = 1000
+    data_buffer = np.zeros(shape=(size, buf_length))
+    cov_unit = CovarianceUnit(size)
+    for i in range(0, buf_length):
+        coin_flip = np.random.randint(2)
+        if coin_flip:
+            # Make all entries the same
+            data = rand_same(size=4, negative=True)
+        else:
+            # Make entries random
+            data = np.random.randint(low=-1, high=2, size=(size, 1))
+        cov_unit.update_cov(data)
+        data_buffer[:, i] = data.ravel()
+    # Check covariance estimate is within range of actual estimate
+    # print(data_buffer.mean(axis=1), )
+    # print(cov_unit.covariance/127, "\n", np.cov(data_buffer))
+    # print(cov_unit)
+    assert np.allclose(
+        data_buffer.mean(axis=1), np.zeros(shape=(2, 1)), atol=0.1)
+    assert np.allclose(cov_unit.covariance/127, np.cov(data_buffer), atol=0.15)
