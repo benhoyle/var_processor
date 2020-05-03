@@ -24,11 +24,11 @@ class StageWrapper:
         self.size = size
         self.vec_len = vec_len
         self.buf_length = buf_length
-        self.stage = Stage(vec_len, size//vec_len)
+        self.stage = Stage(vec_len, size)
         # Generate buffers for testing
         self.input_buffer = np.zeros(shape=(size, buf_length))
         self.pred_buffer = np.zeros(shape=(size, buf_length))
-        self.r_buffer = np.zeros(shape=(size//vec_len, buf_length))
+        self.r_buffer = np.zeros(shape=(self.stage.vpu_len, buf_length))
         self.residual_buffer = np.zeros(shape=(size, buf_length))
         self.count = 0
 

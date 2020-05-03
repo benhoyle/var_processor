@@ -36,11 +36,11 @@ class VPUWrapper:
         """
         self.vpu = vpu
         # Temp fields for output
-        self.input_buffer = np.zeros(shape=(vpu.size, buf_length))
-        self.pred_buffer = np.zeros(shape=(vpu.size, buf_length))
-        # self.nl_pred_buffer = np.zeros(shape=(vpu.size, buf_length))
+        self.input_buffer = np.zeros(shape=(vpu.vec_len, buf_length))
+        self.pred_buffer = np.zeros(shape=(vpu.vec_len, buf_length))
+        # self.nl_pred_buffer = np.zeros(shape=(vpu.vec_len, buf_length))
         self.r_buffer = np.zeros(shape=(1, buf_length))
-        self.residual_buffer = np.zeros(shape=(vpu.size, buf_length))
+        self.residual_buffer = np.zeros(shape=(vpu.vec_len, buf_length))
 
     def iterate(self, input_signal):
         """Iterate VPU."""

@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from src.var_processor.abstract_classes import AbstractSubUnit
+
 
 def normalise(array):
     """Scale array by L2 norm.
@@ -19,35 +21,34 @@ def normalise(array):
     return scaled_array.astype(np.int32)
 
 
-class PowerIterator:
+class PowerIterator(AbstractSubUnit):
     """Module to determine an eigenvector using power iteration.
 
     Operates on 8-bit values.
     """
 
-    def __init__(self, length=4):
+    def __init__(self, vec_len=4):
         """Initialise.
 
         Args:
             length: integer setting the 1D size of the eigenvector
             - needs to be a power of 2.
         """
-        assert isinstance(length, int)
-        self.length = length
+        super(PowerIterator, self).__init__(vec_len)
         # Initialise eigenvector as random vector
         # Set range to -127 to 127 (to be symmetrical)
         # But generate as 16 bit value as we normalise to 8-bit
         self.ev = np.random.randint(
-            low=-127, high=128, size=(length, 1), dtype=np.int32)
+            low=-127, high=128, size=(vec_len, 1), dtype=np.int32)
         # Loop if we get all zeros
         while not self.ev.any():
             self.ev = np.random.randint(
-                low=-127, high=128, size=(length, 1), dtype=np.int32)
+                low=-127, high=128, size=(vec_len, 1), dtype=np.int32)
         # Normalise the eigenvector using the L2 norm
         self.ev = normalise(self.ev)
         # Define placeholder for covariance matrix -
         # values will be 8-bit but we need 32-bit for future calculations
-        self.cov = np.zeros(shape=(length, length), dtype=np.int32)
+        self.cov = np.zeros(shape=(vec_len, vec_len), dtype=np.int32)
         # Define eigenvalue
         self.rayleigh = np.zeros(1, dtype=np.uint16)
 
@@ -93,16 +94,6 @@ class PowerIterator:
         # Remember to convert the input cov to 32-bit variable
         self.cov = cov.astype(np.int32)
         return None
-
-    def __repr__(self):
-        """Generate printable representation of state."""
-        string = (
-            f"Power Iterator - length {self.length}\n"
-            f"Eigenvector:\n{self.eigenvector}\n"
-            f"Eigenvalue:\n{self.eigenvalue}\n"
-            f"Covariance:\n{self.cov}\n"
-        )
-        return string
 
 
 """Old - this may be needed if we had max 16bit not 32.

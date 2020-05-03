@@ -12,11 +12,11 @@ from src.var_processor.stack import Stack
 class StackWrapper:
     """Wrapper for a stack to help testing."""
 
-    def __init__(self, sen_length=256, vec_len=4, buf_length=1000):
+    def __init__(self, vec_len=4, input_length=256, buf_length=1000):
         """Initialise.
 
         Args:
-            sen_length - integer representing size of input data.
+            input_length - integer representing size of input data.
                 Needs to be a power of vec_len.
             vec_len - integer representing the length of each
                 VPU segment.
@@ -24,10 +24,10 @@ class StackWrapper:
                 to buffer when testing.
         """
         # Testing a stage
-        self.sen_length = sen_length
+        self.input_length = input_length
         self.vec_len = vec_len
         self.buf_length = buf_length
-        self.stack = Stack(sen_length, vec_len)
+        self.stack = Stack(input_length, vec_len)
         # Get lengths of causes & predictions
         cause_lengths, pred_lengths = self.stack.get_lengths()
         # Generate buffers for each
@@ -41,7 +41,7 @@ class StackWrapper:
         self.residual_buffers = [pb.copy() for pb in self.pred_buffers]
         # Also add an initial entry in the input buffers for the original input
         self.input_buffers.insert(
-            0, np.zeros(shape=(sen_length, buf_length), dtype=np.int8))
+            0, np.zeros(shape=(input_length, buf_length), dtype=np.int8))
         # Set a looping counter
         self.count = 0
 

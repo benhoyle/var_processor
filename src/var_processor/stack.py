@@ -2,46 +2,42 @@
 
 import math
 from src.var_processor.stage import Stage
+from src.var_processor.abstract_classes import (
+    AbstractSignalProcessor, TransformMixin
+)
 
 
-class Stack:
+class Stack(AbstractSignalProcessor, TransformMixin):
     """Object to process a 1D sensor signal."""
 
-    def __init__(self, sensor_len, vec_len):
+    def __init__(self, vec_len, input_len):
         """Initialise sensor.
 
         Arg:
-            sensor_len - length of input sensor vector - needs to be
-                a power of vec_len.
             vec_len - length of vector for VPU.
+            input_len - length of input sensor vector - needs to be
+                a power of vec_len.
+
         """
-        self.sensor_len = sensor_len
-        self.vec_len = vec_len
+        super(Stack, self).__init__(vec_len, input_len)
         # self.time_len = time_len
-        # Variable to store time stages
+        # Variable to store stages
         self.stages = list()
-        num_stages = math.log(self.sensor_len, self.vec_len)
+        num_stages = math.log(self.input_len, self.vec_len)
         self.num_stages = int(num_stages)
         self.build_stages()
-
-    def generate_stage(self, stage_len):
-        """Generate a stage.
-
-        Arg:
-            stage_len - integer number of stages.
-        """
-        return Stage(self.vec_len, stage_len)
 
     def build_stages(self):
         """Build a set of stages."""
         self.stages = [
-            self.generate_stage(
-                int(self.sensor_len / self.vec_len**(i+1))
+            Stage(
+                self.vec_len,
+                int(self.input_len / self.vec_len**i)
             )
             for i in range(0, self.num_stages)
         ]
 
-    def forward(self, input_data, update_cov=True):
+    def forward(self, forward_data, update_cov=True):
         """Forward pass through the stack.
 
         Args:
@@ -53,23 +49,22 @@ class Stack:
         # Iterate forward through the stages
         for stage in self.stages:
             if update_cov:
-                stage.update_cov(input_data)
-            input_signal = stage.forward(input_data)
+                stage.update_cov(forward_data)
+            input_signal = stage.forward(forward_data)
         # Return scalar output from stack
         return input_signal
 
-    def backward(self, stack_feedback):
+    def backward(self, backward_data):
         """Backward pass through the stack.
 
         Args:
-            stack_feedback: feedback for last stage, scalar.
+            backward_data: feedback for last stage, scalar.
         """
-        feedback_data = stack_feedback
         # Iterate through the stages backwards
         for stage in reversed(self.stages):
-            feedback_data = stage.backward(feedback_data)
+            backward_data = stage.backward(backward_data)
         # Return predicted data for stack
-        return feedback_data
+        return backward_data
 
     def update_cov(self, input_data):
         """Update the covariance matrices in a series of stages.
@@ -124,3 +119,13 @@ class Stack:
         """Return a list of eigenvectors from the VPUs."""
         evs = [stage.get_eigenvectors() for stage in self.stages]
         return evs
+
+    def get_eigenvalues(self):
+        """Return a list of eigenvectors from the VPUs."""
+        evs = [stage.get_eigenvalues() for stage in self.stages]
+        return evs
+
+    def get_covariances(self):
+        """Return covariance matrices."""
+        covs = [stage.get_covariances() for stage in self.stages]
+        return covs

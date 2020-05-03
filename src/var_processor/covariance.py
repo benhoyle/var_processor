@@ -2,50 +2,51 @@
 
 import numpy as np
 from src.var_processor.pb_threshold import ternary_pbt
+from src.var_processor.abstract_classes import AbstractBase
 
 
-class CovarianceUnit:
+class CovarianceUnit(AbstractBase):
     """Variation where the mean is assumed to be 0."""
 
-    def __init__(self, size, stages=8):
+    def __init__(self, vec_len, stages=8):
         """Initialise.
 
         Args:
-            size: integer setting the 1D size of an input.
+            vec_len: integer setting the 1D size of an input.
             stages: integer setting the number of stages.
         """
-        self.size = size
+        super(CovarianceUnit, self).__init__(vec_len)
         # Set max value for signed int
         self.max_value = 127
         self.stages = stages
         # Initialise Square Sums
         self.square_sum = np.zeros(
-            shape=(size, size, self.stages), dtype=np.int8
+            shape=(vec_len, vec_len, self.stages), dtype=np.int8
         )
         # Initialise Store for last full values
         self.complete = np.zeros(
-            shape=(size, size, self.stages), dtype=np.int8
+            shape=(vec_len, vec_len, self.stages), dtype=np.int8
         )
         # Define counter for each stage
         self.stage_counter = np.zeros(self.stages, dtype=np.uint8)
         # Define index for current cov
         self.cov_index = 0
 
-    def update_cov(self, data_array):
+    def update_cov(self, input_data):
         """Add a data array to the covariance data.
 
         This will involve a recursive check.
 
         Args:
-            data_array is a 1D numpy array of length 'size'.
+            input_data is a 1D numpy array of length 'size'.
         """
-        assert max(np.abs(data_array)) == 0 or 1
+        assert max(np.abs(input_data)) == 0 or 1
         # Cast data_array to 8 bit - also check binary here?
-        data_array = data_array.astype(np.int8)
+        input_data = input_data.astype(np.int8)
         # Increment current stage counter
         self.stage_counter[0] += 1
         # Add square of input array
-        self.square_sum[:, :, 0] += np.dot(data_array, data_array.T)
+        self.square_sum[:, :, 0] += np.dot(input_data, input_data.T)
         self.__recursive_update(0)
 
     def __recursive_update(self, i):
@@ -89,9 +90,10 @@ class CovarianceUnit:
 
     def __repr__(self):
         """Return string representation of covariance unit state."""
-        string = (
-            f"""There are {self.stages} stages to process """
-            f"""1D arrays of length {self.size}.\nData is assumed to """
+        string = super(CovarianceUnit, self).__repr__()
+        string += (
+            f"""There are {self.stages} stages to process.\n"""
+            f"""Data is assumed to """
             f"""have a maximum absolute value of {self.max_value}.\n"""
             f"""-------\nCounter: {self.stage_counter}\n"""
             f"""Running sum of squares:\n"""

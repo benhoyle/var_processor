@@ -22,29 +22,27 @@ def test_pad_array():
 def test_stage():
     """Test  stage."""
     # Initialise time stage
-    stages = Stage(3, 10)
-    assert len(stages.vpus) == 10
-    assert not stages.causes.any()
-    assert not stages.pred_inputs.any()
-    assert "10" in stages.__repr__()
+    stage = Stage(3, 30)
+    assert len(stage.vpus) == 10
+    assert not stage.causes.any()
+    assert not stage.pred_inputs.any()
+    assert "30" in stage.__repr__()
     for _ in range(0, 100):
-        data_in = np.random.randint(2, size=(stages.size, 1))
-        residual_in = data_in.copy()
-        r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
-        causes1, pred_inputs1 = stages.iterate(
+        data_in = np.random.randint(2, size=(stage.input_len, 1))
+        # residual_in = data_in.copy()
+        r_backwards = np.random.randint(2, size=(stage.vpu_len, 1))
+        causes1, pred_inputs1 = stage.iterate(
             data_in,
-            residual_in,
             r_backwards
         )
     # assert stages.causes.any()
     # assert stages.pred_inputs.any()
     for _ in range(0, 1000):
-        data_in = np.random.randint(2, size=(stages.size, 1))
-        residual_in = data_in.copy()
-        r_backwards = np.random.randint(2, size=(stages.stage_len, 1))
-        causes2, pred_inputs2 = stages.iterate(
+        data_in = np.random.randint(2, size=(stage.input_len, 1))
+        # residual_in = data_in.copy()
+        r_backwards = np.random.randint(2, size=(stage.vpu_len, 1))
+        causes2, pred_inputs2 = stage.iterate(
             data_in,
-            residual_in,
             r_backwards
         )
     assert not np.array_equal(causes1, causes2)
@@ -57,7 +55,7 @@ def test_stage_function():
     size = 256
     vec_len = 4
     buf_length = 100
-    stage = Stage(vec_len, size//vec_len)
+    stage = Stage(vec_len, size)
 
     # Generate fake data
     data_in = np.random.randint(255, size=(size, 1))

@@ -15,6 +15,7 @@ class AbstractBase:
             vec_len: 8-bit unsigned integer setting
                 the 1D size of an input.
         """
+        assert isinstance(vec_len, int)
         self.vec_len = vec_len
 
     def update_cov(self, input_data):
@@ -53,6 +54,16 @@ class AbstractSubUnit(AbstractBase):
     def covariance(self):
         """Return the covariance."""
         pass
+
+    def __repr__(self):
+        """Generate printable representation of state."""
+        string = super(AbstractSubUnit, self).__repr__()
+        string += (
+            f"Eigenvector:\n{self.eigenvector}\n"
+            f"Eigenvalue:\n{self.eigenvalue}\n"
+            f"Covariance:\n{self.covariance}\n"
+        )
+        return string
 
 
 class AbstractSignalProcessor(AbstractBase):
@@ -103,19 +114,19 @@ class AbstractSignalProcessor(AbstractBase):
 class TransformMixin:
     """Mixin to add transformation functions."""
 
-    def __forward_pre_processing(self, forward_data):
+    def forward_pre_processing(self, forward_data):
         """Process input data for forward processing."""
         return forward_data
 
-    def __forward_post_processing(self, forward_output):
+    def forward_post_processing(self, forward_output):
         """Process output data of forward processing."""
         return forward_output
 
-    def __backward_pre_processing(self, backward_data):
+    def backward_pre_processing(self, backward_data):
         """Process input data for backward processing."""
         return backward_data
 
-    def __backward_post_processing(self, backward_output):
+    def backward_post_processing(self, backward_output):
         """Process output of backward processing."""
         return backward_output
 
@@ -125,11 +136,11 @@ class TransformMixin:
         Args:
             forward_data: 1D numpy array of length vec_len.
         Returns:
-            r_forward: scalar feature detection output
+            forward_output: numpy array of output data
 
         """
-        processed = self.__forward_pre_processing(forward_data)
-        forward_output = self.__forward_post_processing(processed)
+        processed = self.forward_pre_processing(forward_data)
+        forward_output = self.forward_post_processing(processed)
         return forward_output
 
     def backward(self, backward_data):
@@ -138,11 +149,11 @@ class TransformMixin:
         Args:
             backward_data: 1D numpy array of causes - typically shape (1, 1)
         Returns:
-            pred_inputs: scalar feature detection output
+            backward_output: numpy array of output
 
         """
-        processed = self.__backward_pre_processing(backward_data)
-        backward_output = self.__backward_post_processing(processed)
+        processed = self.backward_pre_processing(backward_data)
+        backward_output = self.backward_post_processing(processed)
         return backward_output
 
     def iterate(self, forward_data, backward_data=None):

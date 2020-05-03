@@ -2,6 +2,9 @@
 
 import numpy as np
 from src.var_processor.vpu import BinaryVPU
+from src.var_processor.abstract_classes import (
+    AbstractSignalProcessor, TransformMixin
+)
 
 
 def pad_array(array_in, size):
@@ -19,35 +22,34 @@ def pad_array(array_in, size):
     return input_array
 
 
-class Stage:
+class Stage(AbstractSignalProcessor, TransformMixin):
     """Object to represent a stage of processing."""
 
-    def __init__(self, vec_len, stage_len):
+    def __init__(self, vec_len, input_len):
         """Initialise stage.
 
         Arg:
             vec_len - length of each 1D vector processed by the VPUs.
-            stage_len - integer indicating number of VPUs.
+            input_len - length of input to stage.
         """
-        self.vec_len = vec_len
-        self.stage_len = stage_len
-        self.size = self.vec_len*self.stage_len
-        self.vpus = [BinaryVPU(vec_len) for _ in range(0, stage_len)]
+        super(Stage, self).__init__(vec_len, input_len)
+        self.vpu_len = self.input_len//self.vec_len
+        self.vpus = [BinaryVPU(vec_len) for _ in range(0, self.vpu_len)]
         # Create a blank array for the causes
-        self.causes = np.zeros(shape=(stage_len, 1), dtype=np.int8)
+        self.causes = np.zeros(shape=(self.vpu_len, 1), dtype=np.int8)
         # Create a blank array for the predicted inputs
-        self.pred_inputs = np.zeros(shape=(self.size, 1), dtype=np.int8)
+        self.pred_inputs = np.zeros(shape=(self.input_len, 1), dtype=np.int8)
         # Helper data to keep indices
         self.ranges = [
             range(i*vec_len, (i+1)*vec_len)
-            for i in range(0, stage_len)
+            for i in range(0, self.vpu_len)
         ]
 
     def forward(self, forward_data):
         """Forward pass through the stage (excludes cov update).
 
         Args:
-            input_signal - 1D numpy array of length size.
+            forward_data - 1D numpy array of length size.
         Returns:
             r - 1D numpy array of causes.
 
@@ -57,17 +59,17 @@ class Stage:
             self.causes[i] = vpu.forward(forward_segment)
         return self.get_causes()
 
-    def backward(self, r_backward):
+    def backward(self, backward_data):
         """Backward pass through the stage.
 
         Args:
-            r_backward - 1D numpy array of causes of stage_len.
+            backward_data - 1D numpy array of causes of stage_len.
         Returns:
             pred_inputs - 1D numpy array of length size of predicted inputs.
 
         """
         for i, vpu in enumerate(self.vpus):
-            feedback_segment = r_backward[i]
+            feedback_segment = backward_data[i]
             self.pred_inputs[self.ranges[i]] = vpu.backward(feedback_segment)
         return self.get_pred_inputs()
 
@@ -80,24 +82,6 @@ class Stage:
         for i, vpu in enumerate(self.vpus):
             input_segment = input_data[self.ranges[i]]
             vpu.update_cov(input_segment, power_iterate=power_iterate)
-
-    def iterate(self, stage_in, residual_in, stage_feedback):
-        """Pass data to the stage for processing.
-
-        Arg:
-            stage_in - 1D numpy array with data to process.
-            residual_in - 1D numpy array with mix of predicted / original.
-            stage_feedback - 1D numpy array with feedback data.
-
-        Returns:
-            r_out - 1D numpy array of causes.
-            pred_input - 1D numpy array with predicted input.
-
-        """
-        self.update_cov(stage_in)
-        causes = self.forward(residual_in)
-        pred_inputs = self.backward(stage_feedback)
-        return causes, pred_inputs
 
     def get_causes(self):
         """Return output of VPUs as array."""
@@ -112,8 +96,12 @@ class Stage:
         evs = [vpu.eigenvector for vpu in self.vpus]
         return evs
 
-    def __repr__(self):
-        """Print layer information."""
-        string = f"There are {self.stage_len} units \n"
-        string += f"with dimensionality {self.vec_len}x1"
-        return string
+    def get_eigenvalues(self):
+        """Return a list of eigenvectors from the VPUs."""
+        evs = [vpu.eigenvalue for vpu in self.vpus]
+        return evs
+
+    def get_covariances(self):
+        """Return covariance matrices."""
+        covs = [vpu.covariance for vpu in self.vpus]
+        return covs

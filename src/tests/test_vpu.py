@@ -106,7 +106,6 @@ def test_vpu():
     assert not np.array_equal(old_cov, new_cov)
 
 
-
 def test_buffer_vpu():
     """Test the BufferVPU."""
     # Intialise VPU

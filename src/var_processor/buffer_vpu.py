@@ -7,23 +7,23 @@ from src.var_processor.vpu import VPU
 class BufferVPU(VPU):
     """VPU with time buffering."""
 
-    def __init__(self, size, time_len=1):
+    def __init__(self, vec_len, time_len=1):
         """Initialise object.
 
         We might want to later have different time_lens for forward
         and backward buffering.
 
         Arg:
-            size - size of input data as 1D array.
+            vec_len - size of input data as 1D array.
             time_line - number of time samples to buffer.
         """
         self.time_len = time_len
         # Add buffer for input
-        self.cov_buffer = np.zeros(shape=(size, time_len))
-        self.forward_buffer = np.zeros(shape=(size, time_len))
+        self.cov_buffer = np.zeros(shape=(vec_len, time_len))
+        self.forward_buffer = np.zeros(shape=(vec_len, time_len))
         self.backward_buffer = np.zeros(shape=(1, time_len))
         # Set up VPU with input as flattened buffer
-        super(BufferVPU, self).__init__(size*time_len)
+        super(BufferVPU, self).__init__(vec_len*time_len)
 
     def update_cov(self, input_data):
         """Update the covariance matrix."""
@@ -49,27 +49,27 @@ class BufferVPU(VPU):
             self.forward_buffer.reshape(-1, 1)
         )
 
-    def backward(self, r_backward):
+    def backward(self, backward_data):
         """Backward pass - same interface as parent."""
         # Add r_backward to rear buffer
         self.backward_buffer = np.roll(
             self.backward_buffer, -1, axis=1
         )
         # Add new r_backward to back buffer
-        self.backward_buffer[..., -1] = r_backward
+        self.backward_buffer[..., -1] = backward_data
         # Take r_backward as the average of the stored values
         average_r_back = np.mean(self.backward_buffer, axis=1)
         return super(BufferVPU, self).backward(
             average_r_back
         )
 
-    def iterate(self, forward_data, r_backward):
+    def iterate(self, forward_data, backward_data):
         """Iterate - same interfaces as parent.
 
         forward_data is of length size.
         """
         r_forward = self.forward(forward_data)
-        pred_inputs = self.backward(r_backward)
+        pred_inputs = self.backward(backward_data)
         # "Unbuffer" input_hat by averaging in time
         # This isn't right and skews our function
         unbuffered = np.mean(
@@ -80,4 +80,4 @@ class BufferVPU(VPU):
 
     def reset(self):
         """Reset and clear."""
-        self.__init__(self.size, self.time_len)
+        self.__init__(self.vec_len, self.time_len)
