@@ -46,9 +46,9 @@ class CovarianceUnit:
         self.stage_counter[0] += 1
         # Add square of input array
         self.square_sum[:, :, 0] += np.dot(data_array, data_array.T)
-        self.recursive_update(0)
+        self.__recursive_update(0)
 
-    def recursive_update(self, i):
+    def __recursive_update(self, i):
         """Update with recursive method.
 
         Args:
@@ -78,7 +78,7 @@ class CovarianceUnit:
                     self.square_sum[:, :, i+1] += thresholded
                     # Increment next stage counter
                     self.stage_counter[i+1] += 1
-                    self.recursive_update(i+1)
+                    self.__recursive_update(i+1)
 
     @property
     def covariance(self):
@@ -88,7 +88,7 @@ class CovarianceUnit:
         return self.complete[:, :, self.cov_index]
 
     def __repr__(self):
-        """String representation of covariance unit state."""
+        """Return string representation of covariance unit state."""
         string = (
             f"""There are {self.stages} stages to process """
             f"""1D arrays of length {self.size}.\nData is assumed to """
