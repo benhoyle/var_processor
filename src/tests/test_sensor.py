@@ -7,7 +7,7 @@ from src.sources.capture import (
 )
 from src.var_processor.sensor import Sensor, resize, signal_adjust
 from src.sources.fft import FFTSource
-from src.visualisers.sensor import SensorVisualizer
+from src.visualisers.vis_sensor import SensorVisualizer
 
 
 def test_resize():
