@@ -6,7 +6,6 @@ import time
 import numpy as np
 from src.sources.abstract import SensorSource, CombinedSource
 from src.sources.capture import AudioSource, AVCapture
-from src.sources.video import VideoSource
 from src.sources.fft import FFTSource, midi_tune
 
 
@@ -32,26 +31,6 @@ def test_sensor_source():
     # Test stopping
     source.stop()
     assert not source.started
-
-
-def test_video_source():
-    """Test video source."""
-    # Test initialisation
-    with VideoSource() as video:
-        assert video.src == 0
-        # Test read
-        grabbed1, frame1 = video.read()
-        assert grabbed1
-        assert frame1.any()
-        # Check starting and getting a frame
-        video.start()
-        time.sleep(0.25)
-        grabbed2, frame2 = video.read()
-        assert grabbed2
-        assert not np.array_equal(frame1, frame2)
-        # Test stopping
-        video.stop()
-        assert not video.started
 
 
 def test_audio_source():

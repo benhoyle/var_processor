@@ -11,6 +11,17 @@ import cv2
 from src.sources.abstract import SensorSource
 
 
+def separate_components(frame, square=True):
+    """Separate frame into YUV components.
+
+    square - boolean - if true subsample the colour images so they are square
+    """
+    if square:
+        return frame[:, :, 0], frame[::2, 1::2, 1], frame[::2, 0::2, 1]
+    else:
+        return frame[:, :, 0], frame[:, 1::2, 1], frame[:, 0::2, 1]
+
+
 class VideoSource(SensorSource):
     """Object for video using OpenCV."""
 
@@ -22,6 +33,7 @@ class VideoSource(SensorSource):
         self.cap = cv2.VideoCapture(self.src)
         # Turn off RGB conversion (property 16) to get YUV
         self.cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+        # Watch out - UV are interlaced
         # Set width / height if passed (locks to nearest availabe resolution)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
