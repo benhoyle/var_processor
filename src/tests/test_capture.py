@@ -4,10 +4,9 @@ Run: pytest --cov=src
 """
 import time
 import numpy as np
-from src.sources.capture import (
-    SensorSource, VideoSource, AudioSource, CombinedSource,
-    AVCapture
-)
+from src.sources.abstract import SensorSource, CombinedSource
+from src.sources.capture import AudioSource, AVCapture
+from src.sources.video import VideoSource
 from src.sources.fft import FFTSource, midi_tune
 
 

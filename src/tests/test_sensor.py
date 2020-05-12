@@ -2,9 +2,7 @@
 Run: pytest --cov=src --cov-report term-missing
 """
 import numpy as np
-from src.sources.capture import (
-    AudioSource
-)
+from src.sources.capture import AudioSource
 from src.var_processor.sensor import Sensor, resize, signal_adjust
 from src.sources.fft import FFTSource
 from src.visualisers.vis_sensor import SensorVisualizer
@@ -25,7 +23,7 @@ def test_sensor():
     # Test Initialise
     sensor = Sensor(AudioSource(), 3, 3, m_batch=10)
     # Check mean is None
-    assert not sensor.mean
+    assert not sensor.mean.all()
     # Test getting data
     data = sensor.get_frame()
     mean_1 = sensor.mean

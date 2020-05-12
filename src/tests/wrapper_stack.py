@@ -27,7 +27,7 @@ class StackWrapper:
         self.input_length = input_length
         self.vec_len = vec_len
         self.buf_length = buf_length
-        self.stack = Stack(input_length, vec_len)
+        self.stack = Stack(vec_len, input_length)
         # Get lengths of causes & predictions
         cause_lengths, pred_lengths = self.stack.get_lengths()
         # Generate buffers for each

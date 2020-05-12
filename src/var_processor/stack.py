@@ -50,9 +50,9 @@ class Stack(AbstractSignalProcessor, TransformMixin):
         for stage in self.stages:
             if update_cov:
                 stage.update_cov(forward_data)
-            input_signal = stage.forward(forward_data)
+            forward_data = stage.forward(forward_data)
         # Return scalar output from stack
-        return input_signal
+        return forward_data
 
     def backward(self, backward_data):
         """Backward pass through the stack.
