@@ -3,12 +3,29 @@
 Some more advanced pre-processing for video sources.
 """
 import threading
-import numpy as np
 
 # Video
 import cv2
 
 from src.sources.abstract import SensorSource
+
+
+def flatten_frame(frame, vec_len):
+    """Flatten a frame of video to a 1D array."""
+    rows = frame.shape[0] // vec_len
+    cols = frame.shape[1] // vec_len
+    flattened = frame.reshape(
+        rows, vec_len, cols, vec_len).swapaxes(2, 1).flatten()
+    return flattened
+
+
+def reconstruct_frame(array, vec_len, rows, cols):
+    """Reconstruct a 1D array of clustered blocks into a 2D image.
+
+    rows, cols are original shape."""
+    return array.reshape(
+        rows//vec_len, cols//vec_len, vec_len, vec_len
+    ).swapaxes(2, 1).reshape(rows, cols)
 
 
 def separate_components(frame, square=True):
@@ -17,9 +34,10 @@ def separate_components(frame, square=True):
     square - boolean - if true subsample the colour images so they are square
     """
     if square:
-        return frame[:, :, 0], frame[::2, 1::2, 1], frame[::2, 0::2, 1]
+        components = frame[:, :, 0], frame[::2, 1::2, 1], frame[::2, 0::2, 1]
     else:
-        return frame[:, :, 0], frame[:, 1::2, 1], frame[:, 0::2, 1]
+        components = frame[:, :, 0], frame[:, 1::2, 1], frame[:, 0::2, 1]
+    return components
 
 
 class VideoSource(SensorSource):
@@ -70,3 +88,14 @@ class VideoSource(SensorSource):
     def __exit__(self, exec_type, exc_value, traceback):
         """Extra code to close camera."""
         self.cap.release()
+
+
+class YSource(VideoSource):
+    """Version of video source that just returns the lightness channel."""
+
+    def read(self):
+        """Read video."""
+        with self.read_lock:
+            frame = self.frame.copy()
+            grabbed = self.grabbed
+        return grabbed, frame[..., 0]
