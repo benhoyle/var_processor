@@ -21,6 +21,7 @@ class SensorSource:
             target=self.update,
             args=()
         )
+        self.thread.daemon = True
         self.thread.start()
         return self
 

@@ -45,7 +45,7 @@ class VideoSource(SensorSource):
 
     def __init__(self, src=0, width=640, height=480):
         """Initialise video capture."""
-        super().__init__()
+        super(VideoSource, self).__init__()
         # width=640, height=480
         self.src = src
         self.cap = cv2.VideoCapture(self.src)
@@ -99,3 +99,24 @@ class YSource(VideoSource):
             frame = self.frame.copy()
             grabbed = self.grabbed
         return grabbed, frame[..., 0]
+
+
+class FlatYSource(VideoSource):
+    """Returns flattened Y video."""
+
+    def __init__(self, src=0, width=640, height=480, vec_len=4):
+        """Initialise video capture."""
+        # Store extra vector length variable
+        self.vec_len = vec_len
+        super(FlatYSource, self).__init__(
+            src=src, width=width, height=height)
+
+    def read(self):
+        """Read video."""
+        with self.read_lock:
+            # Get Y frame as 0th on last index
+            frame = self.frame.copy()[..., 0]
+            grabbed = self.grabbed
+            # Flatten frame
+            frame = flatten_frame(frame, self.vec_len)
+        return grabbed, frame

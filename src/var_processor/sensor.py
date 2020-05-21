@@ -111,7 +111,7 @@ class Sensor:
         if self.count >= self.m_batch:
             new_mean = (self.sum//self.count).astype(np.uint8)
             # If mean is empty set, else take an average
-            if self.signal_mean is None:
+            if not self.signal_mean.all():
                 self.signal_mean = new_mean
             else:
                 # Divisional inside to keep at 8-bit
