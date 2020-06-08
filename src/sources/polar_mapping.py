@@ -128,8 +128,10 @@ def split_field(input_image, LUT=None):
 
 def polar2cart(r, theta, center):
     """Convert polar co-ordinates to Cartesian."""
-    x = r * np.cos(theta + np.pi/2) + center[0]
-    y = r * np.sin(theta + np.pi/2) + center[1]
+    # x = r * np.cos(theta + np.pi/2) + center[0]
+    # y = r * np.sin(theta + np.pi/2) + center[1]
+    x = r * np.cos(theta) + center[0]
+    y = r * np.sin(theta) + center[1]
     return x, y
 
 
@@ -150,7 +152,7 @@ def generateLUT(center, final_radius, phase_width=256):
 
 def img2polar(img, center, final_radius, LUT, phase_width=256):
     """Map an image to polar co-ordinates."""
-    Xcart, Ycart = LUT
+    Ycart, Xcart = LUT
     if img.ndim == 3:
         polar_img = img[Ycart, Xcart, :]
         polar_img = np.reshape(
@@ -163,3 +165,69 @@ def img2polar(img, center, final_radius, LUT, phase_width=256):
         )
 
     return polar_img
+
+
+def setup_reduced_res(image):
+    """Generate data for reducing resolution."""
+    # Get width of image as a power of 2
+    base_power = int(np.log2(image.shape[1]))
+    # Highest resolution is set by rough science
+    start_group = (base_power-6)
+    # Determine the number of pixels to group
+    # across the angular (rotation) dimension
+    groupings = 2**(np.arange(start_group, base_power))
+    # Determine the ends of the ranges for the different groups
+    spacings = 2**(np.arange(0, groupings.shape[0]))*5
+    # Determine the ranges outside of the loop
+    grouping_ranges = [
+        np.arange(0, image.shape[1], g) for g in groupings
+    ]
+    return groupings, grouping_ranges, spacings
+
+
+def reduce_resolution(image, output_display=False, precomputed=None):
+    """Reduce resolution as per visual acuity.
+
+    Args:
+        image - 2D numpy array in polar domain - width (cols)
+            - needs to be a power of 2.
+        output_display - boolean indicating whether to
+            calculate an output image for display.
+        precomputed - triple of (groupings, grouping_ranges, spacings)
+            - optionally precomputed to speed up
+
+    Returns:
+        tuple of:
+            output_list - list of reduced image portions.
+            output_image - image for display if output_display = True.
+    """
+    if precomputed is None:
+        groupings, grouping_ranges, spacings = setup_reduced_res(image)
+    else:
+        groupings, grouping_ranges, spacings = precomputed
+    # Build a list of different resolutions
+    start = 0
+    output_list = list()
+    if output_display:
+        shape = (spacings.sum(), image.shape[1])
+        output_image = np.zeros(shape=shape, dtype=image.dtype)
+    else:
+        output_image = None
+    # Loop over the groupings
+    for i in range(groupings.shape[0]):
+        # Average over each set of groupings and add to list
+        reduced = np.add.reduceat(
+            image[start:start + spacings[i], :],
+            grouping_ranges[i],
+            axis=1
+        ) // groupings[i]
+        output_list.append(reduced)
+        # If output_display flag is set, generate an image for output
+        if output_display:
+            output_image[
+                start:start + spacings[i], :
+            ] = np.repeat(reduced, groupings[i], axis=1)
+        # Set the start of the next range as the end of the previous range
+        start += spacings[i]
+    # Return outputs
+    return output_list, output_image
