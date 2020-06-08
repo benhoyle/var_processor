@@ -5,55 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def calculateLUT(radius):
-    """Precalculate a lookup table with the image maths."""
-    LUT = np.zeros((radius, 360, 2), dtype=np.int16)
-    # Iterate around angles of field of view
-    for angle in range(0, 360):
-        # Iterate over diameter
-        for r in range(0, radius):
-            theta = math.radians(angle)
-            # Take angles from the vertical
-            col = math.floor(r*math.sin(theta))
-            row = math.floor(r*math.cos(theta))
-            # rows and cols will be +ve and -ve representing
-            # at offset from an origin
-            LUT[r, angle] = [row, col]
-    return LUT
-
-
-def convert_image(img, LUT):
-    """
-    Convert image from cartesian to polar co-ordinates.
-
-    img is a numpy 2D array having shape (height, width)
-    LUT is a numpy array having shape (diameter, 180, 2)
-    storing [x, y] co-ords corresponding to [r, angle]
-    """
-    # Use centre of image as origin
-    centre_row = img.shape[0] // 2
-    centre_col = img.shape[1] // 2
-    # Determine the largest radius
-    if centre_row > centre_col:
-        radius = centre_col
-    else:
-        radius = centre_row
-    # Theta on Y-axis is closer to cortex maps
-    output_image = np.zeros(shape=(360, radius))
-    # Iterate around angles of field of view
-    for angle in range(0, 360):
-        # Iterate over radius
-        for r in range(0, radius):
-            # Get mapped x, y
-            (row, col) = tuple(LUT[r, angle])
-            # Translate origin to centre
-            # This makes rotation clockwise from positive y axis
-            m_row = centre_row - row
-            m_col = col+centre_col
-            output_image[angle, r] = img[m_row, m_col]
-    return output_image
-
-
 def calculatebackLUT(max_radius):
     """Precalculate a lookup table for mapping from x,y to polar."""
     LUT = np.zeros((max_radius*2, max_radius*2, 2), dtype=np.int16)
@@ -117,7 +68,7 @@ def split_field(input_image, LUT=None):
     # If a look-up table is not passed, create one
     if LUT is None:
         max_size = max(input_image.shape)
-        LUT = calculateLUT(max_size)
+        LUT = generateLUT(max_size)
     out_image = convert_image(input_image, LUT)
     # I could possibly change the mapping above to avoid flipping
     # Flipping arranges similar to cortex
@@ -126,52 +77,64 @@ def split_field(input_image, LUT=None):
     return norm_scale(left_image), norm_scale(right_image)
 
 
-def polar2cart(r, theta, center):
+def polar2cart(r, theta):
     """Convert polar co-ordinates to Cartesian."""
     # x = r * np.cos(theta + np.pi/2) + center[0]
     # y = r * np.sin(theta + np.pi/2) + center[1]
-    x = r * np.cos(theta) + center[0]
-    y = r * np.sin(theta) + center[1]
-    return x, y
+    row = r * np.cos(theta)
+    col = r * np.sin(theta)
+    return row, col
 
 
-def generateLUT(center, final_radius, phase_width=256):
-    """Generate a look-up table for polar mapping."""
-    initial_radius = 0
+def generateLUT(radius, phase_width=256):
+    """Generate a look-up table for polar mapping.
+
+    Args:
+        radius - integer specifying radius in pixels.
+        phase_width - integer specifying angle resolution."""
     theta, R = np.meshgrid(
         np.linspace(0, 2*np.pi, phase_width),
-        np.arange(initial_radius, final_radius)
+        np.arange(0, radius)
     )
 
-    Xcart, Ycart = polar2cart(R, theta, center)
+    rows, cols = polar2cart(R, theta)
 
-    Xcart = Xcart.astype(int)
-    Ycart = Ycart.astype(int)
-    return (Xcart, Ycart)
+    rows = rows.astype(int)
+    cols = cols.astype(int)
+    # Create a new LUT of shape (radius, angle, 2)
+    LUT = np.stack([rows, cols], axis=-1)
+    return LUT
 
 
-def img2polar(img, center, final_radius, LUT, phase_width=256):
-    """Map an image to polar co-ordinates."""
-    Ycart, Xcart = LUT
-    if img.ndim == 3:
-        polar_img = img[Ycart, Xcart, :]
-        polar_img = np.reshape(
-            polar_img, (final_radius, phase_width, 3)
-        )
+def convert_image(image, LUT):
+    """Precalculate a lookup table with the image maths."""
+    # Determine image size
+    rows, cols = image.shape[:2]
+    # Use centre of image as origin
+    centre_row = rows // 2
+    centre_col = cols // 2
+    # Determine LUT size
+    max_radius, angles, _ = LUT.shape
+    # Determine radius
+    radius = min(max_radius, centre_row, centre_col)
+    # Adjust LUT to centre and clip so indices are within bounds
+    rows = np.clip(centre_row - LUT[..., 0], 0, centre_row+radius-1)
+    cols = np.clip(centre_col + LUT[..., 1], 0, centre_col+radius-1)
+    # If multiple components
+    if image.ndim == 3:
+        output = image[rows, cols, :]
     else:
-        polar_img = img[Ycart, Xcart]
-        polar_img = np.reshape(
-            polar_img, (final_radius, phase_width)
-        )
-
-    return polar_img
+        output = image[rows, cols]
+    # Crop based on min radius
+    return output[:radius, ...]
 
 
-def setup_reduced_res(image):
+def setup_reduced_res(image_width):
     """Generate data for reducing resolution."""
     # Get width of image as a power of 2
-    base_power = int(np.log2(image.shape[1]))
+    base_power = int(np.log2(image_width))
     # Highest resolution is set by rough science
+    # But we need to change this based on
     start_group = (base_power-6)
     # Determine the number of pixels to group
     # across the angular (rotation) dimension
@@ -180,7 +143,7 @@ def setup_reduced_res(image):
     spacings = 2**(np.arange(0, groupings.shape[0]))*5
     # Determine the ranges outside of the loop
     grouping_ranges = [
-        np.arange(0, image.shape[1], g) for g in groupings
+        np.arange(0, image_width, g) for g in groupings
     ]
     return groupings, grouping_ranges, spacings
 
@@ -200,16 +163,21 @@ def reduce_resolution(image, output_display=False, precomputed=None):
         tuple of:
             output_list - list of reduced image portions.
             output_image - image for display if output_display = True.
+
     """
     if precomputed is None:
-        groupings, grouping_ranges, spacings = setup_reduced_res(image)
+        groupings, grouping_ranges, spacings = setup_reduced_res(
+            image.shape[1]
+        )
     else:
         groupings, grouping_ranges, spacings = precomputed
     # Build a list of different resolutions
     start = 0
     output_list = list()
     if output_display:
-        shape = (spacings.sum(), image.shape[1])
+        # This needs to be changed in case sum > image.shape
+        width = min(spacings.sum(), image.shape[0])
+        shape = (width, image.shape[1])
         output_image = np.zeros(shape=shape, dtype=image.dtype)
     else:
         output_image = None
@@ -224,8 +192,11 @@ def reduce_resolution(image, output_display=False, precomputed=None):
         output_list.append(reduced)
         # If output_display flag is set, generate an image for output
         if output_display:
+            end = start + spacings[i]
+            if end > output_image.shape[0]:
+                end = output_image.shape[0]
             output_image[
-                start:start + spacings[i], :
+                start:end, :
             ] = np.repeat(reduced, groupings[i], axis=1)
         # Set the start of the next range as the end of the previous range
         start += spacings[i]
