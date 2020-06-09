@@ -129,8 +129,20 @@ def convert_image(image, LUT):
     return output[:radius, ...]
 
 
-def setup_reduced_res(image_width):
-    """Generate data for reducing resolution."""
+def setup_reduced_res(image_width, first_group=10):
+    """Generate data for reducing resolution.
+
+    Args:
+        image_width - width (in pixels)of polar-mapped image.
+        first_group - width (in pixels) of most detailed area.
+
+    Returns:
+        groupings - np array of sizes of grouped pixels.
+        grouping_ranges - list of np arrays representing ranges for the
+            grouping.
+        spacings - np array representing the width of each area.
+
+    """
     # Get width of image as a power of 2
     base_power = int(np.log2(image_width))
     # Highest resolution is set by rough science

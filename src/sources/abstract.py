@@ -45,6 +45,7 @@ class CombinedSource:
     def __init__(self):
         """Initialise."""
         self.sources = dict()
+        self.started = False
 
     def add_source(self, source, name=None):
         """Add a source object.
@@ -60,6 +61,7 @@ class CombinedSource:
         """Start all sources."""
         for _, source in self.sources.items():
             source.start()
+        self.started = True
 
     def read(self):
         """Read from all sources.
@@ -75,6 +77,7 @@ class CombinedSource:
         """Stop all sources."""
         for _, source in self.sources.items():
             source.stop()
+        self.started = False
 
     def __del__(self):
         """Extra code to close camera."""

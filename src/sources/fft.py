@@ -2,6 +2,8 @@
 import numpy as np
 from scipy.fftpack import fft
 from src.sources.capture import AudioSource
+from src.sources.abstract import CombinedSource
+from src.sources.video import VideoSource
 
 
 def midi_tune(array, integer=False):
@@ -57,3 +59,15 @@ class FFTSource(AudioSource):
             # Convert to 8-bit integers
             fft_y_data = fft_y_data.astype(np.uint8)
             return self.length, fft_y_data
+
+
+class FFTAVCapture(CombinedSource):
+    """Auto populate with audio and video."""
+
+    def __init__(self):
+        """Initialise."""
+        super().__init__()
+        audio = FFTSource()
+        self.add_source(audio, "audio")
+        video = VideoSource()
+        self.add_source(video, "video")
