@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image, ImageTk
 import cv2
 from src.sources.polar_mapping import (
-    generateLUT, img2polar, setup_reduced_res, reduce_resolution
+    generateLUT, setup_reduced_res, reduce_resolution
 )
 
 

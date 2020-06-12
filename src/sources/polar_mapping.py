@@ -91,7 +91,8 @@ def generateLUT(radius, phase_width=256):
 
     Args:
         radius - integer specifying radius in pixels.
-        phase_width - integer specifying angle resolution."""
+        phase_width - integer specifying angle resolution.
+    """
     theta, R = np.meshgrid(
         np.linspace(0, 2*np.pi, phase_width),
         np.arange(0, radius)
@@ -127,6 +128,76 @@ def convert_image(image, LUT):
         output = image[rows, cols]
     # Crop based on min radius
     return output[:radius, ...]
+
+
+def cart2polar(row, col):
+    """Convert cartesian co-ordinates to polar."""
+    # Compute angle in radians
+    angle = np.arctan2(col, row)
+    # Compute radius
+    radius = np.sqrt(row**2+col**2)
+    return radius, angle
+
+
+# Original method
+def generate_backLUT(max_radius):
+    """Precalculate a lookup table for mapping from x,y to polar.
+
+    Assumes a centre at 0, 0 - need to translate when back converting.
+
+    Args:
+        max_radius - integer representing the maximum radius -
+            forms the LUT height and width.
+    Returns:
+        LUT - numpy array of shape (rows, cols, 2) that provides
+            the backward mapping.
+
+    """
+    cart_range = np.arange(-1*max_radius, max_radius)
+    row, col = np.meshgrid(
+        cart_range,
+        cart_range
+    )
+
+    radius, angle = cart2polar(row, col)
+
+    radius = radius.astype(int)
+    # Create a new LUT of shape (radius, angle, 2)
+    backLUT = np.stack([radius, angle], axis=-1)
+    return backLUT
+
+
+def back_convert_image(polar_image, backLUT):
+    """Convert a polar image to cartesian using the backLUT.
+
+    Output image is square with dimensions 2*radius in each dimension.
+
+
+    Args:
+        polar_image - numpy array with radius along rows and
+            angles along columns.
+        backLUT - a numpy array generated as above.
+    Returns:
+        output_image - a numpy array representing the cartesian image.
+
+    """
+    # Determine image size
+    range_radius, range_angles = polar_image.shape[:2]
+    # Determine LUT size
+    rows, cols, _ = backLUT.shape
+    # Adjust radius so it is within the scale of the polar image
+    radius = np.clip(backLUT[..., 0], 0, range_radius).astype(int)
+    # Convert radian range to discrete pixel range
+    angles = (
+        (backLUT[..., 1]+np.pi)*(1/(2*np.pi))*(range_angles-1)
+    ).astype(int)
+    # If multiple components
+    if polar_image.ndim == 3:
+        output_image = polar_image[radius, angles, :]
+    else:
+        output_image = polar_image[radius, angles]
+    # Image is upside down so flip the right way around
+    return np.flip(output_image)
 
 
 def setup_reduced_res(image_width, first_group=10):
@@ -214,3 +285,42 @@ def reduce_resolution(image, output_display=False, precomputed=None):
         start += spacings[i]
     # Return outputs
     return output_list, output_image
+
+
+def forward_quad(input_data):
+    """Split an image into 4.
+
+    Args:
+        input_data - 2D numpy array with polar image.
+    """
+    rows, cols = input_data.shape
+    right_image = input_data[:, :cols//2].T
+    left_image = np.flip(input_data[:, cols//2:].T)
+    # Split in half again vertically to show
+    rows, cols = right_image.shape
+    output_images = list()
+    output_images.append(right_image[:rows//2, :])
+    output_images.append(left_image[:rows//2, :])
+    output_images.append(right_image[rows//2:, :])
+    output_images.append(left_image[rows//2:, :])
+    return output_images
+
+
+def backward_quad(image_list):
+    """Take four images and recombine into one.
+
+    Reverses forward_quad.
+
+    Args:
+        image_list - list of 2D numpy array with each
+            quadrant image.
+    """
+    # Take quadrants [0] and [2] and concatenate along axis 0
+    right_image = np.concatenate((image_list[0], image_list[2]), axis=0)
+    # Take quadrants [1] and [3] and concatenate along axis 0
+    left_image = np.concatenate((image_list[1], image_list[3]), axis=0)
+    # Take above results, transpose, flip and concatenate along axis 1
+    flipped_right = right_image.T
+    flipped_left = np.flip(left_image.T)
+    combined_image = np.concatenate((flipped_right, flipped_left), axis=1)
+    return combined_image
