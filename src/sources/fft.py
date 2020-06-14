@@ -6,6 +6,11 @@ from src.sources.abstract import CombinedSource
 from src.sources.video import VideoSource
 
 
+def norm_scale(a):
+    """Normalise array to a scale of 0 to 1."""
+    return (a - np.min(a))/np.ptp(a)
+
+
 def midi_tune(array, integer=False):
     """Convert an array of frequencies to a MIDI tuning."""
     array = (69 + 12*np.log2((array / 440)))
@@ -40,25 +45,30 @@ class FFTSource(AudioSource):
         """Read fft."""
         with self.read_lock:
             samples = np.asarray(self._s_fifo, dtype=np.int16)
-            y_freq = fft(samples)
-            # level axe at each frequency:
-            # yf between 0.0 and 1.0 for every xf step
-            # This is also taking the first real half
-            fft_y_data = (
-                (1.0 / (self.nb_samples / 2)) *
-                np.abs(y_freq[0:self.nb_samples // 2])
-            )
+        y_freq = fft(samples)
+        # level axe at each frequency:
+        # yf between 0.0 and 1.0 for every xf step
+        # This is also taking the first real half
+        fft_y_data = (
+            (1.0 / (self.nb_samples / 2)) *
+            np.abs(y_freq[0:self.nb_samples // 2])
+        )
 
-            # Use bincount to get the sum for each unique x, and
-            # divide each sum by the count of each unique value in x
-
-            fft_y_data = (
-                np.bincount(self.x_scale, weights=fft_y_data)
-                / (np.bincount(self.x_scale) + 1)
-            )
-            # Convert to 8-bit integers
-            fft_y_data = fft_y_data.astype(np.uint8)
-            return self.length, fft_y_data
+        # Use bincount to get the sum for each unique x, and
+        # divide each sum by the count of each unique value in x
+        fft_y_data = (
+            np.bincount(self.x_scale, weights=fft_y_data)
+            / (np.bincount(self.x_scale) + 1)
+        )
+        # Convert to log scale - +1 to avoid log2(0)
+        output = np.log2(fft_y_data + 1)
+        # Normalise and convert to 8-bit - normalisation causes variation
+        # integered = (norm_scale(output)*255).astype(np.uint8)
+        # Clipping within a range and scaling to 255 is better
+        integered = (np.clip(output, 2, 12)-2)*(25.5)
+        # Convert to integer
+        integered = integered.astype(np.uint8)
+        return self.length, integered
 
 
 class FFTAVCapture(CombinedSource):
