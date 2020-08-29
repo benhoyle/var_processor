@@ -99,7 +99,6 @@ class Sensor:
             num_stages = math.log(self.sensor_len, self.vec_len)
             self.power_len = self.vec_len**int(num_stages)
 
-
     def update_mean(self, signal):
         """Update running mean estimate.
 
