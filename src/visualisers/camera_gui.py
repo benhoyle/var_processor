@@ -25,7 +25,6 @@ def display(image_array, label):
     label.configure(image=b)
     label._image_cache = b
 
-
 class CameraGUI:
 
     def __init__(self, src=0, phase_width=256):
@@ -150,3 +149,48 @@ class CamGUIReduced(CameraGUI):
         display(output_image, self.reduced_image)
         # Update Window
         self.window.update()
+
+
+class DecomposeFrame:
+    """Object to display decomposed images."""
+
+    def __init__(self, parent, subpanels=4, width=256, height=256):
+        """Initialise.
+
+        Args:
+            parent - parent Tk object.
+            sub_panels - number of sub_panels.
+            width - subpanel width in pixels.
+            height - subpanel height in pixels.
+        """
+        self.frame = tk.Frame(parent)
+        self.frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.panels = list()
+        self.canvas_content = list()
+        self.width = width
+        self.height = height
+        for _ in range(subpanels):
+            # Create a canvas for each panel
+            canvas = tk.Canvas(self.frame, width=width, height=height)
+            canvas.pack(side=tk.TOP)
+            self.panels.append(canvas)
+            self.canvas_content.append(None)
+
+    def update(self, images):
+        """Update frame with images.
+
+        Args:
+            images - a set of monochrome, RGB or RGBA arrays.
+        """
+        # Display the mean values of each buffer
+        for i, image in enumerate(images):
+            pil_image = Image.fromarray(image)
+            pil_image = pil_image.resize((self.width, self.height))
+            photo_image = ImageTk.PhotoImage(image=pil_image)
+            if self.canvas_content[i] is None:
+                # print("Creating chart")
+                self.canvas_content[i] = self.panels[i].create_image(0, 0, image=photo_image, anchor=tk.NW)
+            else:
+                # print("Configuring chart")
+                self.panels[i].itemconfig(self.canvas_content[i], image=photo_image)
+                self.panels[i].image = photo_image

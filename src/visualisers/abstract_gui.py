@@ -9,7 +9,7 @@ from src.visualisers.spectrogram_gui import convert_to_chart
 class AbstractGUI:
 
     def __init__(self, sensor):
-        """Initiailisation method."""
+        """Initialisation method."""
         # Setup gui
         self.window = tk.Tk()
 
@@ -22,6 +22,7 @@ class AbstractGUI:
         self.quit_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
         # Setup sensor
+        self.sensor = None
         self.add_sensor(sensor)
 
         # Create a list of panels for the GUI
@@ -53,14 +54,14 @@ class AbstractGUI:
 class SignalFrame:
     """Object to display signals."""
 
-    def __init__(self, parent, subpanels=4, width=256, height=64, packing=tk.TOP):
+    def __init__(self, parent, sub_panels=4, width=256, height=64, packing=tk.TOP):
         """Initialise.
 
         Args:
             parent - parent Tk object.
-            subpanels - number of subpanels.
-            width - subpanel width in pixels.
-            height - subpanel height in pixels.
+            sub_panels - number of sub_panels.
+            width - sub-panel width in pixels.
+            height - sub-panel height in pixels.
         """
         self.frame = tk.Frame(parent)
         self.frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
@@ -68,7 +69,7 @@ class SignalFrame:
         self.canvas_content = list()
         self.width = width
         self.height = height
-        for _ in range(subpanels):
+        for _ in range(sub_panels):
             # Create a canvas for each panel
             canvas = tk.Canvas(self.frame, width=width, height=height)
             canvas.pack(side=packing)
