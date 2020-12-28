@@ -133,6 +133,5 @@ class DecomposeStage(AbstractStage):
 
     def backward_processing(self, data):
         """Backward processing."""
-
-        surfaces = decompose(data.astype(np.int16))
-        return surfaces
+        image = recompose(data)
+        return image

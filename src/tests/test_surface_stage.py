@@ -68,3 +68,22 @@ def test_decompose():
     assert V[0] == 0
     assert D[0] == 2
 
+
+def test_recompose():
+    """Test recomposing."""
+    test_surfaces = [np.array([[1]]), np.array([[0]]), np.array([[0]]), np.array([[0]])]
+    image = recompose(test_surfaces)
+    assert np.array_equal(image, np.ones(shape=(2, 2)))
+    # Watch out - it won't do fractions due to int data type
+    # Test horizontal
+    test_surfaces = [np.array([[2]]), np.array([[2]]), np.array([[0]]), np.array([[0]])]
+    image = recompose(test_surfaces)
+    assert np.array_equal(image, np.array([[4, 4], [0, 0]]))
+    # Test vertical
+    test_surfaces = [np.array([[2]]), np.array([[0]]), np.array([[2]]), np.array([[0]])]
+    image = recompose(test_surfaces)
+    assert np.array_equal(image, np.array([[4, 0], [4, 0]]))
+    # Test diagonal
+    test_surfaces = [np.array([[2]]), np.array([[0]]), np.array([[0]]), np.array([[2]])]
+    image = recompose(test_surfaces)
+    assert np.array_equal(image, np.array([[4, 0], [0, 4]]))
