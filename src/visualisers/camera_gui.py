@@ -281,3 +281,84 @@ class PBTDeComGUI(DeComGUI):
         for frame, image_list in zip(self.frames, image_lists):
             frame.update(image_list)
         return Y
+
+
+class PolarPBT(PolarGUI):
+    """Perform PBT decomposition on a polar decomposed image."""
+    def __init__(self, src=0, stages=7):
+        # Call parent init
+        super().__init__(src)
+
+        # Hardcode decomposition stages for now
+        self.num_of_stages = stages
+
+        # Create a frame for each stage and pack vertically
+        self.frames = [
+            DecomposeFrame(self.window, width=128, height=128)
+            for _ in range(self.num_of_stages)]
+
+    def update_image(self):
+        # Get frame
+        converted = super().update_image()
+        image = converted
+        image_lists = [[image]]
+        # Iteratively decompose
+        for _ in range(self.num_of_stages + 4 - 1):
+            # Convert to 16-bit to avoid overflow
+            images = decompose(image.astype(np.int16))
+            # Set A as input for next stage
+            image = images[0]
+            # PBT A - remember to cast to 8-bit
+            A_pbt = pb_threshold(images[0].astype(np.uint8)) * 255
+            # PBT differences
+            diffs = list()
+            for i in images[1:]:
+                thresholded = pb_residual_threshold(i)
+                rescaled = (thresholded * 127) + 127
+                color_mapped = cv2.applyColorMap(rescaled.astype(np.uint8), cv2.COLORMAP_JET)
+                diffs.append(color_mapped)
+            images = [A_pbt.astype(np.uint8)] + diffs
+            image_lists.append(images)
+
+        for frame, image_list in zip(self.frames, image_lists):
+            frame.update(image_list)
+        return converted
+
+
+class PBTPolarQuad(PolarGUI):
+    """Show different portions of visual field."""
+
+    def __init__(self, src=0, phase_width=256):
+        # Call parent init
+        super().__init__(src, phase_width)
+
+        # Add a decompose frame to show quad
+        self.quad_frame = DecomposeFrame(self.window, width=128, height=128)
+
+        # Create a frame for each quad and pack vertically
+        self.decom_frames = [
+            DecomposeFrame(self.window, width=128, height=128)
+            for _ in range(4)]
+
+    def update_image(self):
+        # Get frame
+        converted = super().update_image()
+        quad_images = forward_quad(converted)
+        self.quad_frame.update(quad_images)
+        for quad, frame in zip(quad_images, self.decom_frames):
+            image = quad
+            image_lists = [[image]]
+            # Convert to 16-bit to avoid overflow
+            images = decompose(image.astype(np.int16))
+            # PBT A - remember to cast to 8-bit
+            A_pbt = pb_threshold(images[0].astype(np.uint8)) * 255
+            # PBT differences
+            diffs = list()
+            for i in images[1:]:
+                thresholded = pb_residual_threshold(i)
+                rescaled = (thresholded * 127) + 127
+                color_mapped = cv2.applyColorMap(rescaled.astype(np.uint8), cv2.COLORMAP_JET)
+                diffs.append(color_mapped)
+            images = [A_pbt.astype(np.uint8)] + diffs
+            frame.update(images)
+        return converted
