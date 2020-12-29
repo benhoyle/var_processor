@@ -9,6 +9,7 @@ import cv2
 from src.sources.polar_mapping import (
     generateLUT, setup_reduced_res, reduce_resolution
 )
+from src.var_processor.surface_stage import decompose
 
 
 def display(image_array, label):
@@ -24,6 +25,64 @@ def display(image_array, label):
     b = ImageTk.PhotoImage(image=a)
     label.configure(image=b)
     label._image_cache = b
+
+
+class BasicCameraGUI:
+    """Basic camera viewer for Y channel."""
+
+    def __init__(self, src=0):
+        # Set Up Camera
+        self.cam = cv2.VideoCapture(src)
+        self.cam.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+        # Setup gui
+        self.window = tk.Tk()
+        # label for the original video frame
+        self.original_image = tk.Label(master=self.window)
+        self.original_image.grid(row=1, column=0)
+
+        # label for fps
+        self.fps_label = tk.Label(master=self.window)
+        self.fps_label.grid(row=0, column=0)
+        self.fps_label._frame_times = deque([0] * 5)  # arbitrary 5 frame average FPS
+        # quit button
+        self.quit_button = tk.Button(master=self.window, text='Quit', command=lambda: self.quit_())
+        self.quit_button.grid(row=0, column=1)
+        # setup the update callback
+        self.window.after(0, func=lambda: self.update_all())
+
+    def update_image(self):
+        # Get frame
+        (readsuccessful, frame) = self.cam.read()
+        Y = frame[:, :, 0]
+        display(Y, self.original_image)
+        return Y
+
+    def update_fps(self):
+        frame_times = self.fps_label._frame_times
+        frame_times.rotate()
+        frame_times[0] = time.time()
+        sum_of_deltas = frame_times[0] - frame_times[-1]
+        count_of_deltas = len(frame_times) - 1
+        try:
+            fps = int(float(count_of_deltas) / sum_of_deltas)
+        except ZeroDivisionError:
+            fps = 0
+        self.fps_label.configure(text=f'FPS: {fps}')
+
+    def update_all(self):
+        _ = self.update_image()
+        # Update Window
+        self.window.update()
+        self.update_fps()
+        self.window.after(20, func=lambda: self.update_all())
+
+    def run(self):
+        self.window.mainloop()
+
+    def quit_(self):
+        self.cam.release()
+        self.window.destroy()
+
 
 class CameraGUI:
 
@@ -59,7 +118,7 @@ class CameraGUI:
         self.fps_label = tk.Label(master=self.window)
         self.fps_label.grid(row=2, column=0)
         # arbitrary 5 frame average FPS
-        self.fps_label._frame_times = deque([0]*5)
+        self.fps_label._frame_times = deque([0] * 5)
         # quit button
         self.quit_button = tk.Button(
             master=self.window, text='Quit', command=lambda: self.quit_())
@@ -81,8 +140,8 @@ class CameraGUI:
         rows, cols = converted.shape
         # right_image = np.flipud(converted[:, :cols//2].T)
         # left_image = np.fliplr(converted[:, cols//2:].T)
-        right_image = converted[:, :cols//2].T
-        left_image = np.flip(converted[:, cols//2:].T)
+        right_image = converted[:, :cols // 2].T
+        left_image = np.flip(converted[:, cols // 2:].T)
         display(right_image, self.right_image)
         display(left_image, self.left_image)
         # Update Window
@@ -139,8 +198,8 @@ class CamGUIReduced(CameraGUI):
         rows, cols = converted.shape
         # right_image = np.flipud(converted[:, :cols//2].T)
         # left_image = np.fliplr(converted[:, cols//2:].T)
-        right_image = converted[:, :cols//2].T
-        left_image = np.flip(converted[:, cols//2:].T)
+        right_image = converted[:, :cols // 2].T
+        left_image = np.flip(converted[:, cols // 2:].T)
         display(right_image, self.right_image)
         display(left_image, self.left_image)
         # Show reduced image
@@ -194,3 +253,71 @@ class DecomposeFrame:
                 # print("Configuring chart")
                 self.panels[i].itemconfig(self.canvas_content[i], image=photo_image)
                 self.panels[i].image = photo_image
+
+
+class DeComGUI:
+    """GUI to look at decompositions."""
+
+    def __init__(self, src=0, run=True):
+        # Setup gui
+        self.window = tk.Tk()
+
+        # Setup FPS and Quit Button on First Row
+        button_frame = tk.Frame(self.window)
+        button_frame.pack(expand=True, fill=tk.BOTH)
+        # quit button
+        self.quit_button = tk.Button(button_frame, text='Quit', command=self.quit_)
+        self.quit_button.pack(side=tk.RIGHT, padx=5, pady=5)
+
+        # Set Up Camera
+        self.cam = cv2.VideoCapture(src)
+        self.cam.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+        # Capture a frame to set image sizes
+        _, frame = self.cam.read()
+        Y = frame[:, :, 0]
+
+        # Hardcode decomposition stages for now
+        self.num_of_stages = 3
+
+        # Create a frame for each stage and pack vertically
+        self.frames = [
+            DecomposeFrame(self.window, width=128, height=128)
+            for _ in range(self.num_of_stages + 4)]
+
+        if run:
+            self.run()
+
+    def update(self):
+        # Get frame
+        _, frame = self.cam.read()
+        Y = frame[:, :, 0]
+        image = Y
+        image_lists = [[Y]]
+        # Iteratively decompose
+        for _ in range(self.num_of_stages + 4 - 1):
+            # Convert to 16-bit to avoid overflow
+            images = decompose(image.astype(np.int16))
+            # Scale and convert back to 8-bit
+            # Convert A to unsigned 8 bit
+            images[0] = (images[0]).astype(np.uint8)
+            # For others shift to positive and apply colour map
+            # heatmap = cv2.applyColorMap(image, cv2.COLORMAP_HOT)
+            images = [images[0]] + [
+                cv2.applyColorMap((i + 128).astype(np.uint8), cv2.COLORMAP_JET) for i in images[1:]
+            ]
+            image_lists.append(images)
+            # Set the next image as the average of the set
+            image = images[0]
+
+        for frame, image_list in zip(self.frames, image_lists):
+            frame.update(image_list)
+
+        self.window.after(10, self.update)
+
+    def run(self):
+        self.update()
+        self.window.mainloop()
+
+    def quit_(self):
+        self.cam.release()
+        self.window.destroy()
