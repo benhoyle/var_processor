@@ -1,4 +1,4 @@
-"""Probablistic Binary Thresholding."""
+"""Probabilistic Binary Thresholding."""
 import numpy as np
 from packaging import version
 
@@ -22,7 +22,7 @@ def get_rand_ints(bit_size, input_size):
 
 
 def pb_threshold(input_values):
-    """Apply a probablistic binary threshold to the input_values."""
+    """Apply a probabilistic binary threshold to the input_values."""
     input_size = input_values.shape
     data_type = input_values.dtype
     bit_size = data_type.itemsize*8
@@ -91,3 +91,18 @@ def signal_pre_processor(signal, mean, signal_max=254):
     rand_vals = np.random.uniform(size=zero_mean.shape)*mean
     binary_values = np.where(np.abs(zero_mean) > rand_vals, 1, 0)
     return binary_values*signs
+
+
+def pb_residual_threshold(input_values):
+    """Apply a probabilistic binary threshold to residual values."""
+    # Get signs of input data
+    signs = np.sign(input_values)
+    # Compare absolute difference with negative exponential (CDF) function
+    comparison = np.exp(-1*np.abs(input_values))
+    # Get a set of random samples between 0 and 1
+    rand_values = np.random.uniform(size=input_values.shape)
+    # Set to 0 if a random sample b< comparison above
+    binary_values = np.where(rand_values < comparison, 0, 1)
+    # Reapply signs
+    resigned = binary_values * signs
+    return resigned
