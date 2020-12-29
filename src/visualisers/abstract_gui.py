@@ -7,6 +7,7 @@ from src.visualisers.spectrogram_gui import convert_to_chart
 
 
 class AbstractGUI:
+    # TODO: This is a duplicate of BasicCameraGui
 
     def __init__(self, sensor):
         """Initialisation method."""
