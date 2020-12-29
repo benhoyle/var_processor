@@ -31,7 +31,7 @@ def display(image_array, label):
 class BasicCameraGUI:
     """Basic camera viewer for Y channel."""
 
-    def __init__(self, src=0):
+    def __init__(self, src=0, run=False):
         # Set Up Camera
         self.cam = cv2.VideoCapture(src)
         self.cam.set(cv2.CAP_PROP_CONVERT_RGB, 0)
@@ -57,6 +57,10 @@ class BasicCameraGUI:
 
         # setup the update callback
         self.window.after(0, func=lambda: self.update_all())
+
+        # Run if indicated
+        if run:
+            self.run()
 
     def update_image(self):
         # Get frame
@@ -205,43 +209,29 @@ class DecomposeFrame:
                 self.panels[i].image = photo_image
 
 
-class DeComGUI:
+class DeComGUI(BasicCameraGUI):
     """GUI to look at decompositions."""
 
-    def __init__(self, src=0, run=True):
-        # Setup gui
-        self.window = tk.Tk()
-
-        # Setup FPS and Quit Button on First Row
-        button_frame = tk.Frame(self.window)
-        button_frame.pack(expand=True, fill=tk.BOTH)
-        # quit button
-        self.quit_button = tk.Button(button_frame, text='Quit', command=self.quit_)
-        self.quit_button.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        # Set Up Camera
-        self.cam = cv2.VideoCapture(src)
-        self.cam.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+    def __init__(self, src=0):
+        # Call parent init
+        super().__init__(src)
 
         # Hardcode decomposition stages for now
-        self.num_of_stages = 3
+        self.num_of_stages = 8
 
         # Create a frame for each stage and pack vertically
         self.frames = [
             DecomposeFrame(self.window, width=128, height=128)
-            for _ in range(self.num_of_stages + 4)]
+            for _ in range(self.num_of_stages)]
 
-        if run:
-            self.run()
-
-    def update(self):
+    def update_image(self):
         # Get frame
-        _, frame = self.cam.read()
+        (readsuccessful, frame) = self.cam.read()
         Y = frame[:, :, 0]
         image = Y
         image_lists = [[Y]]
         # Iteratively decompose
-        for _ in range(self.num_of_stages + 4 - 1):
+        for _ in range(self.num_of_stages - 1):
             # Convert to 16-bit to avoid overflow
             images = decompose(image.astype(np.int16))
             # Scale and convert back to 8-bit
@@ -258,22 +248,13 @@ class DeComGUI:
 
         for frame, image_list in zip(self.frames, image_lists):
             frame.update(image_list)
-
-        self.window.after(10, self.update)
-
-    def run(self):
-        self.update()
-        self.window.mainloop()
-
-    def quit_(self):
-        self.cam.release()
-        self.window.destroy()
+        return Y
 
 
 class PBTDeComGUI(DeComGUI):
     """Apply PBT to the surfaces (separately to A and differences)."""
 
-    def update(self):
+    def update_image(self):
         # Get frame
         _, frame = self.cam.read()
         Y = frame[:, :, 0]
@@ -299,5 +280,4 @@ class PBTDeComGUI(DeComGUI):
 
         for frame, image_list in zip(self.frames, image_lists):
             frame.update(image_list)
-
-        self.window.after(10, self.update)
+        return Y
