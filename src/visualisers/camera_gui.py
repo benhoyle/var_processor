@@ -384,5 +384,6 @@ class CamGUIReducedRecon(CamGUIReduced):
         padding = ((0, pad_value), (0, 0))
         padded = np.pad(output_image, padding, mode="edge")
         back_image = back_convert_image(padded, self.backLUT)
-        display(np.rot90(back_image, k=-1), self.recon_image)
+        display(np.rot90(back_image, k=1), self.recon_image)
+        # display(back_image, self.recon_image)
         return back_image
