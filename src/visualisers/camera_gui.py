@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image, ImageTk
 import cv2
 from src.sources.polar_mapping import (
-    generateLUT, setup_reduced_res, reduce_resolution, convert_image, forward_quad
+    generateLUT, setup_reduced_res, reduce_resolution, convert_image, forward_quad, generate_backLUT, back_convert_image
 )
 from src.var_processor.surface_stage import decompose
 from src.var_processor.pb_threshold import pb_threshold, pb_residual_threshold
@@ -347,7 +347,6 @@ class PBTPolarQuad(PolarGUI):
         self.quad_frame.update(quad_images)
         for quad, frame in zip(quad_images, self.decom_frames):
             image = quad
-            image_lists = [[image]]
             # Convert to 16-bit to avoid overflow
             images = decompose(image.astype(np.int16))
             # PBT A - remember to cast to 8-bit
@@ -362,3 +361,28 @@ class PBTPolarQuad(PolarGUI):
             images = [A_pbt.astype(np.uint8)] + diffs
             frame.update(images)
         return converted
+
+
+class CamGUIReducedRecon(CamGUIReduced):
+    """GUI to view a reconstruction of a reduced polar image."""
+    def __init__(self, src=0, phase_width=256):
+        # Call parent init
+        super().__init__(src, phase_width)
+        # Setup backLUt
+        self.backLUT = generate_backLUT(phase_width)
+        # frame and label for the reconstruction
+        recon_frame = tk.Frame(self.window)
+        recon_frame.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.recon_image = tk.Label(recon_frame)
+        self.recon_image.pack(padx=5, pady=5)
+
+    def update_image(self):
+        output_image = super().update_image()
+        # Show reconstructed image
+        # Add padding if not square
+        pad_value = output_image.shape[1] - output_image.shape[0]
+        padding = ((0, pad_value), (0, 0))
+        padded = np.pad(output_image, padding, mode="edge")
+        back_image = back_convert_image(padded, self.backLUT)
+        display(np.rot90(back_image, k=-1), self.recon_image)
+        return back_image

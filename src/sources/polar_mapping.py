@@ -186,7 +186,7 @@ def back_convert_image(polar_image, backLUT):
     # Determine LUT size
     rows, cols, _ = backLUT.shape
     # Adjust radius so it is within the scale of the polar image
-    radius = np.clip(backLUT[..., 0], 0, range_radius).astype(int)
+    radius = np.clip(backLUT[..., 0], 0, range_radius-1).astype(int)
     # Convert radian range to discrete pixel range
     angles = (
         (backLUT[..., 1]+np.pi)*(1/(2*np.pi))*(range_angles-1)
